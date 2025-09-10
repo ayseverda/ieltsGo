@@ -1,6 +1,15 @@
-fastapi
-uvicorn[standard]
-python-multipart
-python-dotenv
-pydantic
-httpx
+# Core FastAPI dependencies
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+python-multipart==0.0.6
+python-dotenv==1.0.0
+pydantic==2.5.0
+httpx==0.25.2
+
+# AI and TTS dependencies
+google-generativeai==0.3.2
+pyttsx3==2.90
+requests==2.31.0
+
+# Optional: Google Cloud TTS (for future use)
+# google-cloud-texttospeech==2.29.0

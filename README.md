@@ -1,175 +1,239 @@
-# IELTS Go - Yapay Zeka Destekli IELTS Hazırlık Platformu
+# 🎯 IELTS Go - AI Destekli IELTS Hazırlık Platformu
 
-Bu proje, IELTS sınavına hazırlanan öğrenciler için yapay zeka destekli bir öğrenme platformudur. Her modül ayrı geliştiriciler tarafından geliştirilmektedir.
+Modern teknoloji ile IELTS sınavına hazırlan! Yapay zeka destekli, modüler yapıda geliştirilmiş kapsamlı IELTS hazırlık platformu.
 
-## 🏗️ Proje Yapısı
+## ✨ Özellikler
 
-```
-ieltsGo/
-├── 📁 src/               # React Frontend
-├── 📁 backend/           # Ana API Gateway
-│   ├── main.py          # API Gateway
-│   └── requirements.txt # Tüm bağımlılıklar
-│   ├── reading.py       # Reading modülü (Port: 8001)
-│   ├── writing.py       # Writing modülü (Port: 8002)
-│   ├── listening.py     # Listening modülü (Port: 8003)
-│   ├── speaking.py      # Speaking modülü (Port: 8004)
-│   └── run_all_modules.py # Tüm modülleri aynı anda başlat
-├── start_all.bat        # Tüm servisleri başlat
-├── start_modules.bat    # Sadece modülleri başlat
-└── README.md
-```
+
+
+### 📚  Modüller (Geliştirilecek)
+- **Listening Modülü **: Met
+- **Reading Modülü**: Metin analizi ve soru çözme
+- **Writing Modülü**: Yazma becerileri ve AI geri bildirimi
+- **Speaking Modülü**: Konuşma pratiği ve değerlendirme
 
 ## 🚀 Hızlı Başlangıç
 
-### 1. Otomatik Başlatma (Windows)
-
+### 1️⃣ Projeyi İndir
 ```bash
-# Tüm servisleri aynı anda başlat (3 pencere açılır)
-start_all.bat
-
-# Sadece modülleri aynı anda başlat (1 pencere)
-start_modules.bat
+git clone https://github.com/ayseverda/ieltsGo.git
+cd ieltsGo
 ```
 
-### 2. Manuel Başlatma
-
+### 2️⃣ Frontend Kurulumu
 ```bash
-# Terminal 1 - Frontend
 npm install
-npm start
-
-# Terminal 2 - Ana Backend (API Gateway)
-cd backend
-pip install -r requirements.txt
-python main.py
-
-# Terminal 3 - Tüm Modüller (Aynı anda)
-cd modules
-python run_all_modules.py
 ```
 
-### 3. Servis URL'leri
+### 3️⃣ Backend Kurulumu
+```bash
+# Python virtual environment oluştur
+python -m venv venv
+
+# Virtual environment'ı aktifleştir
+# Windows:
+venv\Scripts\activate
+# macOS/Linux:
+source venv/bin/activate
+
+# Bağımlılıkları yükle
+pip install -r backend/requirements.txt
+```
+
+### 4️⃣ API Key'leri Ayarla
+`.env` dosyası oluştur:
+```env
+GEMINI_API_KEY=your_gemini_api_key_here
+ELEVENLABS_API_KEY=your_elevenlabs_api_key_here
+```
+
+#### 🔑 API Key'leri Nasıl Alınır?
+
+**Gemini API Key:**
+1. https://makersuite.google.com/app/apikey adresine git
+2. "Create API Key" butonuna tıkla
+3. API key'ini kopyala
+
+**ElevenLabs API Key:**
+1. https://elevenlabs.io adresine git
+2. Ücretsiz hesap oluştur
+3. Profile → API Key'den key'ini al
+
+### 5️⃣ Uygulamayı Başlat
+```bash
+# Windows:
+.\start_all.bat
+
+# macOS/Linux:
+chmod +x start_all.sh
+./start_all.sh
+```
+
+### 6️⃣ Kullanmaya Başla!
+- **Frontend**: http://localhost:3000
+- **Listening Modülü**: http://localhost:8003/docs
+
+## 📁 Proje Yapısı
+
+```
+ieltsGo/
+├── src/                    # React frontend
+│   ├── components/         # React bileşenleri
+│   │   ├── HomePage.tsx   # Ana sayfa
+│   │   ├── ListeningModule.tsx # Listening modülü (tamamlandı)
+│   │   ├── ReadingModule.tsx   # Reading modülü (placeholder)
+│   │   ├── WritingModule.tsx   # Writing modülü (placeholder)
+│   │   └── SpeakingModule.tsx  # Speaking modülü (placeholder)
+│   ├── App.tsx            # Ana uygulama
+│   ├── App.css            # Stiller
+│   └── index.tsx          # Giriş noktası
+├── backend/               # Ana API Gateway
+│   ├── main.py           # FastAPI ana uygulama
+│   └── requirements.txt  # Python bağımlılıkları
+├── modules/              # Modül backend'leri
+│   ├── listening.py      # Listening modülü (tamamlandı)
+│   ├── reading.py        # Reading modülü (placeholder)
+│   ├── writing.py        # Writing modülü (placeholder)
+│   ├── speaking.py       # Speaking modülü (placeholder)
+│   └── run_all_modules.py # Tüm modülleri başlat
+├── public/               # Statik dosyalar
+├── start_all.bat         # Tüm servisleri başlat
+├── start_modules.bat     # Sadece modülleri başlat
+├── .env                  # API key'leri (oluşturulacak)
+└── .gitignore           # Git ignore dosyası
+```
+
+## 🎧 Listening Modülü Kullanımı
+
+### 1. Ayarları Yap
+- **Konu**: Education, Work, Travel, Health, Technology, Environment
+- **Zorluk**: Başlangıç, Orta, İleri
+- **Aksan**: İngiliz, Amerikan, Avustralya
+
+### 2. Listening Oluştur
+- "🎧 Yeni Listening Oluştur" butonuna tıkla
+- AI 10-15 saniyede içerik üretir
+
+### 3. Dinle ve Cevapla
+- "Dinle" butonuna tıkla (metin başta gizli)
+- İstersen "Göster" butonuyla metni görüntüle
+- Soruları cevapla (çoktan seçmeli, boşluk doldurma, doğru/yanlış)
+
+### 4. Sonuçları Gör
+- "📊 Cevapları Kontrol Et" butonuna tıkla
+- Detaylı analiz ve puanlama
+
+## 🌐 Servis URL'leri
 
 - **Frontend**: http://localhost:3000
-- **Ana API Gateway**: http://localhost:8000
+- **API Gateway**: http://localhost:8000
 - **Reading Modülü**: http://localhost:8001
 - **Writing Modülü**: http://localhost:8002
 - **Listening Modülü**: http://localhost:8003
 - **Speaking Modülü**: http://localhost:8004
 
-## 👥 Geliştirici Rehberi
+## 📚 API Dokümantasyonu
 
-### Modül Geliştirme
-
-Her modül kendi klasöründe bağımsız olarak geliştirilir:
-
-#### Reading Modülü Geliştiricisi
-```bash
-cd modules
-# reading.py dosyasında API endpoint'lerinizi geliştirin
-# Port: 8001
-```
-
-#### Writing Modülü Geliştiricisi
-```bash
-cd modules
-# writing.py dosyasında API endpoint'lerinizi geliştirin
-# Port: 8002
-```
-
-#### Listening Modülü Geliştiricisi
-```bash
-cd modules
-# listening.py dosyasında API endpoint'lerinizi geliştirin
-# Port: 8003
-```
-
-#### Speaking Modülü Geliştiricisi
-```bash
-cd modules
-# speaking.py dosyasında API endpoint'lerinizi geliştirin
-# Port: 8004
-```
-
-### API Endpoint Standartları
-
-Her modül şu endpoint'leri sağlamalıdır:
-
-```python
-@app.get("/")  # Modül durumu
-@app.post("/analyze")  # veya /evaluate
-@app.get("/topics")  # veya /texts, /audio-files
-@app.get("/topics/{id}")  # Belirli içerik
-```
-
-### Frontend Entegrasyonu
-
-Frontend, ana API Gateway üzerinden modüllere erişir:
-
-```typescript
-// Reading modülüne istek
-const response = await axios.post('http://localhost:8000/api/reading/analyze', {
-  text: "Metin içeriği",
-  questions: ["Soru 1", "Soru 2"],
-  user_answers: ["A", "B"]
-});
-
-// Writing modülüne istek
-const response = await axios.post('http://localhost:8000/api/writing/evaluate', {
-  task_type: "task2",
-  topic: "Technology",
-  user_text: "Essay içeriği",
-  word_count: 250
-});
-```
-
-## 🔧 Geliştirme Araçları
-
-### Health Check
-```bash
-# Tüm modüllerin durumunu kontrol et
-curl http://localhost:8000/health
-```
-
-### API Dokümantasyonu
-- Ana Gateway: http://localhost:8000/docs
+Her modül için Swagger UI mevcuttur:
 - Reading: http://localhost:8001/docs
 - Writing: http://localhost:8002/docs
 - Listening: http://localhost:8003/docs
 - Speaking: http://localhost:8004/docs
 
+## 👥 Geliştirici Rehberi
+
+### Yeni Modül Geliştirme
+1. `modules/[modül_adı].py` dosyasını düzenle
+2. Gerekli endpoint'leri ekle
+3. Pydantic modellerini tanımla
+4. Frontend'de yeni component oluştur
+5. Test et
+
+### API Endpoint Standartları
+```python
+@app.get("/")
+async def root():
+    return {"message": "Modül Adı API - Geliştirici: İSİM", "status": "ready"}
+
+@app.get("/health")
+async def health_check():
+    return {"status": "healthy", "module": "modül_adı"}
+```
+
+### Health Check
+```bash
+curl http://localhost:8001/health
+curl http://localhost:8002/health
+curl http://localhost:8003/health
+curl http://localhost:8004/health
+```
+
+## 🔧 Sorun Giderme
+
+### Port Zaten Kullanımda
+```bash
+# Windows:
+netstat -ano | findstr :8003
+taskkill /PID [PID_NUMARASI] /F
+
+# macOS/Linux:
+lsof -ti:8003 | xargs kill -9
+```
+
+### API Key Hatası
+- `.env` dosyasının proje kök dizininde olduğundan emin ol
+- API key'lerin doğru olduğunu kontrol et
+- ElevenLabs ücretsiz plan limitini kontrol et
+
+### Ses Çalışmıyor
+- ElevenLabs API key'inin doğru olduğundan emin ol
+- Internet bağlantını kontrol et
+- Fallback olarak Windows TTS kullanılır
+
 ## 📋 Görev Dağılımı
 
-- **Frontend**: Ana sayfa ve modül sayfaları ✅
-- **Reading Modülü**: Metin analizi, soru çözme, AI entegrasyonu 🔄
-- **Writing Modülü**: Essay değerlendirme, gramer analizi, AI entegrasyonu 🔄
-- **Listening Modülü**: Ses dosyası işleme, konuşma tanıma, AI entegrasyonu 🔄
-- **Speaking Modülü**: Konuşma analizi, telaffuz değerlendirme, AI entegrasyonu 🔄
+### Tamamlanan
+- ✅ **Listening Modülü**: AI içerik üretimi, TTS, çoklu soru tipleri
+- ✅ **Frontend**: React, TypeScript, responsive design
+- ✅ **API Gateway**: Modül yönlendirme sistemi
 
-### 🎯 Modül Geliştiricileri İçin
+### Geliştirilecek
+- 🔄 **Reading Modülü**: Metin analizi, soru üretimi
+- 🔄 **Writing Modülü**: AI yazma değerlendirmesi
+- 🔄 **Speaking Modülü**: Konuşma pratiği, telaffuz analizi
+- 🔄 **Veritabanı**: Kullanıcı verileri, progress tracking
+- 🔄 **Kullanıcı Sistemi**: Kayıt, giriş, profil
 
-Her modül şu anda sadece temel yapıya sahip. Geliştiriciler:
+## 🎯 Sonraki Adımlar
 
-1. **Kendi modül dosyasını düzenler** (`modules/reading.py`, `writing.py`, vb.)
-2. **API endpoint'lerini ekler** (POST, GET, PUT, DELETE)
-3. **AI entegrasyonu yapar** (OpenAI, diğer AI servisleri)
-4. **Veritabanı bağlantısı kurar** (SQLite, PostgreSQL, vb.)
-5. **Test yazar** ve **dokümantasyon** hazırlar
-
-## 🚀 Sonraki Adımlar
-
-- [ ] AI entegrasyonu (OpenAI API)
+- [ ] Reading modülü geliştirme
+- [ ] Writing modülü geliştirme  
+- [ ] Speaking modülü geliştirme
 - [ ] Veritabanı entegrasyonu
-- [ ] Kullanıcı kimlik doğrulama
-- [ ] Gerçek içerik ekleme
-- [ ] Test yazma
-- [ ] Deployment
+- [ ] Kullanıcı sistemi
+- [ ] Progress tracking
+- [ ] Mobile responsive design
+- [ ] Docker containerization
 
-## 📞 İletişim
+## 🤝 Katkıda Bulunma
 
-Her modül geliştiricisi kendi modülü ile ilgili soruları çözebilir. Genel proje soruları için ana geliştirici ile iletişime geçin.
+1. Fork yap
+2. Feature branch oluştur (`git checkout -b feature/amazing-feature`)
+3. Commit yap (`git commit -m 'Add amazing feature'`)
+4. Push yap (`git push origin feature/amazing-feature`)
+5. Pull Request oluştur
 
-## Lisans
+## 📄 Lisans
 
 Bu proje MIT lisansı altında lisanslanmıştır.
+
+## 🆘 Yardım
+
+Sorun yaşıyorsan:
+1. Issues bölümünde sorununu bildir
+2. Discord/Telegram grubumuzda sor
+3. Wiki sayfalarını kontrol et
+
+---
+
+**🎉 Başarılar! IELTS sınavında başarılar dileriz!**
