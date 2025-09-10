@@ -10,7 +10,6 @@ ieltsGo/
 ├── 📁 backend/           # Ana API Gateway
 │   ├── main.py          # API Gateway
 │   └── requirements.txt # Tüm bağımlılıklar
-├── 📁 modules/           # Modül backend'leri
 │   ├── reading.py       # Reading modülü (Port: 8001)
 │   ├── writing.py       # Writing modülü (Port: 8002)
 │   ├── listening.py     # Listening modülü (Port: 8003)
