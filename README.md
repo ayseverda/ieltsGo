@@ -7,7 +7,7 @@ Modern teknoloji ile IELTS sınavına hazırlan! Yapay zeka destekli, modüler y
 
 
 ### 📚  Modüller (Geliştirilecek)
-- **Listening Modülü **: Met
+- **Listening Modülü**: Metin dinleme soru çözme
 - **Reading Modülü**: Metin analizi ve soru çözme
 - **Writing Modülü**: Yazma becerileri ve AI geri bildirimi
 - **Speaking Modülü**: Konuşma pratiği ve değerlendirme
@@ -140,25 +140,6 @@ Her modül için Swagger UI mevcuttur:
 - Listening: http://localhost:8003/docs
 - Speaking: http://localhost:8004/docs
 
-## 👥 Geliştirici Rehberi
-
-### Yeni Modül Geliştirme
-1. `modules/[modül_adı].py` dosyasını düzenle
-2. Gerekli endpoint'leri ekle
-3. Pydantic modellerini tanımla
-4. Frontend'de yeni component oluştur
-5. Test et
-
-### API Endpoint Standartları
-```python
-@app.get("/")
-async def root():
-    return {"message": "Modül Adı API - Geliştirici: İSİM", "status": "ready"}
-
-@app.get("/health")
-async def health_check():
-    return {"status": "healthy", "module": "modül_adı"}
-```
 
 ### Health Check
 ```bash
@@ -192,17 +173,6 @@ lsof -ti:8003 | xargs kill -9
 
 ## 📋 Görev Dağılımı
 
-### Tamamlanan
-- ✅ **Listening Modülü**: AI içerik üretimi, TTS, çoklu soru tipleri
-- ✅ **Frontend**: React, TypeScript, responsive design
-- ✅ **API Gateway**: Modül yönlendirme sistemi
-
-### Geliştirilecek
-- 🔄 **Reading Modülü**: Metin analizi, soru üretimi
-- 🔄 **Writing Modülü**: AI yazma değerlendirmesi
-- 🔄 **Speaking Modülü**: Konuşma pratiği, telaffuz analizi
-- 🔄 **Veritabanı**: Kullanıcı verileri, progress tracking
-- 🔄 **Kullanıcı Sistemi**: Kayıt, giriş, profil
 
 ## 🎯 Sonraki Adımlar
 
@@ -213,26 +183,6 @@ lsof -ti:8003 | xargs kill -9
 - [ ] Kullanıcı sistemi
 - [ ] Progress tracking
 - [ ] Mobile responsive design
-- [ ] Docker containerization
-
-## 🤝 Katkıda Bulunma
-
-1. Fork yap
-2. Feature branch oluştur (`git checkout -b feature/amazing-feature`)
-3. Commit yap (`git commit -m 'Add amazing feature'`)
-4. Push yap (`git push origin feature/amazing-feature`)
-5. Pull Request oluştur
-
-## 📄 Lisans
-
-Bu proje MIT lisansı altında lisanslanmıştır.
-
-## 🆘 Yardım
-
-Sorun yaşıyorsan:
-1. Issues bölümünde sorununu bildir
-2. Discord/Telegram grubumuzda sor
-3. Wiki sayfalarını kontrol et
 
 ---
 
