@@ -10,6 +10,9 @@ httpx==0.25.2
 google-generativeai==0.3.2
 pyttsx3==2.90
 requests==2.31.0
+elevenlabs==0.2.26
+speechrecognition==3.10.0
+pydub==0.25.1
 
 # Optional: Google Cloud TTS (for future use)
 # google-cloud-texttospeech==2.29.0

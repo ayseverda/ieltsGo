@@ -2,14 +2,15 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import Response
 from fastapi.middleware.cors import CORSMiddleware
 import httpx
-import uvicorn
+import uvicorn  # Server for ASGI applications
 
 app = FastAPI(title="IELTS Go API Gateway", version="1.0.0")
 
 # CORS middleware
+# CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=["http://localhost:3000", "http://localhost:3001"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

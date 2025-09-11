@@ -1,15 +1,16 @@
 import React from 'react';
-import { HashRouter as Router, Routes, Route } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import HomePage from './components/HomePage';
 import ReadingModule from './components/ReadingModule';
 import WritingModule from './components/WritingModule';
 import ListeningModule from './components/ListeningModule';
 import SpeakingModule from './components/SpeakingModule';
+import SpeechRecording from './components/SpeechRecording';
 import './App.css';
 
 function App() {
   return (
-    <Router>
+    <Router basename="/ayseverda/ieltsGo">
       <div className="App">
         <Routes>
           <Route path="/" element={<HomePage />} />
@@ -17,6 +18,7 @@ function App() {
           <Route path="/writing" element={<WritingModule />} />
           <Route path="/listening" element={<ListeningModule />} />
           <Route path="/speaking" element={<SpeakingModule />} />
+          <Route path="/speech-recording" element={<SpeechRecording />} />
         </Routes>
       </div>
     </Router>

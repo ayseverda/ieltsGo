@@ -2,14 +2,19 @@
 echo IELTS Go - Tüm Servisler Aynı Anda Başlatılıyor...
 echo.
 
+if not exist ".venv\Scripts\python.exe" (
+    echo Virtual environment not found, running installation...
+    call install_dependencies.bat
+)
+
 echo 1. Frontend Başlatılıyor...
 start "Frontend" cmd /k "npm start"
 
 echo 2. Ana Backend (API Gateway) Başlatılıyor...
-start "API Gateway" cmd /k "cd backend && python main.py"
+start "API Gateway" cmd /k ".venv\Scripts\python.exe backend\main.py"
 
 echo 3. Tüm Modüller Başlatılıyor...
-start "All Modules" cmd /k "cd modules && python run_all_modules.py"
+start "All Modules" cmd /k ".venv\Scripts\python.exe modules\run_all_modules.py"
 
 echo.
 echo ✅ Tüm servisler başlatıldı!
