@@ -1,18 +1,24 @@
 # Core FastAPI dependencies
-fastapi==0.104.1
-uvicorn[standard]==0.24.0
-python-multipart==0.0.6
-python-dotenv==1.0.0
-pydantic==2.5.0
-httpx==0.25.2
+fastapi==0.116.1
+uvicorn==0.35.0
+python-multipart==0.0.20
+python-dotenv==1.1.1
+pydantic==2.11.7
+httpx==0.28.1
 
 # AI and TTS dependencies
-google-generativeai==0.3.2
-pyttsx3==2.90
-requests==2.31.0
+google-generativeai==0.8.5
+pyttsx3==2.99
+requests==2.32.5
 elevenlabs==0.2.26
-speechrecognition==3.10.0
+speechrecognition==3.14.3
 pydub==0.25.1
+pyaudio==0.2.14
 
-# Optional: Google Cloud TTS (for future use)
-# google-cloud-texttospeech==2.29.0
+# MongoDB dependencies
+motor==3.7.1
+pymongo==4.15.0
+
+# Authentication dependencies
+PyJWT==2.10.1
+email-validator==2.3.0

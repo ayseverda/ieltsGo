@@ -6,6 +6,10 @@ import WritingModule from './components/WritingModule';
 import ListeningModule from './components/ListeningModule';
 import SpeakingModule from './components/SpeakingModule';
 import SpeechRecording from './components/SpeechRecording';
+import LoginPage from './components/LoginPage';
+import RegisterPage from './components/RegisterPage';
+import Dashboard from './components/Dashboard';
+import ProtectedRoute from './components/ProtectedRoute';
 import './App.css';
 
 function App() {
@@ -14,10 +18,33 @@ function App() {
       <div className="App">
         <Routes>
           <Route path="/" element={<HomePage />} />
-          <Route path="/reading" element={<ReadingModule />} />
-          <Route path="/writing" element={<WritingModule />} />
-          <Route path="/listening" element={<ListeningModule />} />
-          <Route path="/speaking" element={<SpeakingModule />} />
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/register" element={<RegisterPage />} />
+          <Route path="/dashboard" element={
+            <ProtectedRoute>
+              <Dashboard />
+            </ProtectedRoute>
+          } />
+          <Route path="/reading" element={
+            <ProtectedRoute>
+              <ReadingModule />
+            </ProtectedRoute>
+          } />
+          <Route path="/writing" element={
+            <ProtectedRoute>
+              <WritingModule />
+            </ProtectedRoute>
+          } />
+          <Route path="/listening" element={
+            <ProtectedRoute>
+              <ListeningModule />
+            </ProtectedRoute>
+          } />
+          <Route path="/speaking" element={
+            <ProtectedRoute>
+              <SpeakingModule />
+            </ProtectedRoute>
+          } />
           <Route path="/speech-recording" element={<SpeechRecording />} />
         </Routes>
       </div>

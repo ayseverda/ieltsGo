@@ -3,6 +3,91 @@
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
 }
 
+/* Auth buttons */
+.auth-buttons {
+  display: flex;
+  gap: 15px;
+  justify-content: center;
+  margin-top: 20px;
+}
+
+.auth-btn {
+  padding: 12px 24px;
+  border-radius: 10px;
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 1rem;
+  transition: all 0.3s ease;
+  border: 2px solid transparent;
+}
+
+.login-btn {
+  background: transparent;
+  color: white;
+  border-color: white;
+}
+
+.login-btn:hover {
+  background: white;
+  color: #667eea;
+}
+
+.register-btn {
+  background: white;
+  color: #667eea;
+}
+
+.register-btn:hover {
+  background: transparent;
+  color: white;
+  border-color: white;
+}
+
+.dashboard-btn {
+  background: #4ecdc4;
+  color: white;
+}
+
+.dashboard-btn:hover {
+  background: #45b7aa;
+}
+
+.logout-btn {
+  background: #ff4757;
+  color: white;
+  border: none;
+  cursor: pointer;
+}
+
+.logout-btn:hover {
+  background: #ff3742;
+}
+
+.welcome-text {
+  color: white;
+  font-weight: 600;
+  font-size: 1.1rem;
+  margin-right: 20px;
+}
+
+/* Mobile responsive */
+@media (max-width: 768px) {
+  .auth-buttons {
+    flex-direction: column;
+    gap: 10px;
+    align-items: center;
+  }
+  
+  .welcome-text {
+    margin-right: 0;
+    margin-bottom: 10px;
+  }
+  
+  .auth-btn {
+    width: 200px;
+  }
+}
+
 .container {
   max-width: 1200px;
   margin: 0 auto;

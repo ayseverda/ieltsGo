@@ -34,7 +34,7 @@ async def health_check():
 # ---------- Model & Config ----------
 load_dotenv()
 
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "AIzaSyCYeBOoGsW1du63HlKZ7W0AtknImO9Y1fo")
 
 if genai and GEMINI_API_KEY:
     genai.configure(api_key=GEMINI_API_KEY)

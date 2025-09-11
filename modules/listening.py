@@ -12,17 +12,13 @@ import time
 import base64
 import requests
 
-# Environment variables yükle
-load_dotenv()
+# API Keys - Direkt hardcode
+GEMINI_API_KEY = "AIzaSyCYeBOoGsW1du63HlKZ7W0AtknImO9Y1fo"  # Gemini API Key
+ELEVENLABS_API_KEY = "sk_f9fb41089e1f4d279108e5bbcaa019f5a95ed0ad40d560be"  # ElevenLabs API Key - https://elevenlabs.io
 
 # Gemini API'yi yapılandır
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-if not GEMINI_API_KEY:
-    print("⚠️  GEMINI_API_KEY bulunamadı! .env dosyasına ekleyin.")
-    print("   Örnek: GEMINI_API_KEY=your_api_key_here")
-else:
-    genai.configure(api_key=GEMINI_API_KEY)
-    model = genai.GenerativeModel('gemini-1.5-flash')
+genai.configure(api_key=GEMINI_API_KEY)
+model = genai.GenerativeModel('gemini-1.5-flash')
 
 app = FastAPI(title="IELTS Listening Module API", version="1.0.0")
 
@@ -396,10 +392,9 @@ async def elevenlabs_text_to_speech(request: TTSRequest):
     ElevenLabs TTS - Çok daha doğal ve kaliteli ses
     """
     try:
-        # ElevenLabs API key
-        ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY")
-        if not ELEVENLABS_API_KEY:
-            print("⚠️  ELEVENLABS_API_KEY bulunamadı! .env dosyasına ekleyin.")
+        # ElevenLabs API key - direkt dosyadan al
+        if not ELEVENLABS_API_KEY or ELEVENLABS_API_KEY == "your_elevenlabs_api_key_here":
+            print("⚠️  ELEVENLABS_API_KEY ayarlanmamış! listening.py dosyasına ekleyin.")
             print("   Fallback olarak Windows TTS kullanılacak.")
             return await enhanced_text_to_speech(request)
         

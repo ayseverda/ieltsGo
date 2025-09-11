@@ -1,13 +1,47 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { BookOpen, PenTool, Headphones, Mic } from 'lucide-react';
+import { auth } from '../services/auth';
 
 const HomePage: React.FC = () => {
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [user, setUser] = useState<any>(null);
+
+  useEffect(() => {
+    const checkAuth = () => {
+      const authenticated = auth.isAuthenticated();
+      const userData = auth.getCurrentUser();
+      setIsAuthenticated(authenticated);
+      setUser(userData);
+    };
+
+    checkAuth();
+  }, []);
+
+  const handleLogout = () => {
+    auth.logout();
+    setIsAuthenticated(false);
+    setUser(null);
+  };
+
   return (
     <div className="container">
       <div className="text-center mb-4">
         <h1 className="title">IELTS Go</h1>
         <p className="subtitle">Yapay Zeka Destekli IELTS Hazırlık Platformu</p>
+        
+        {isAuthenticated ? (
+          <div className="auth-buttons">
+            <span className="welcome-text">Hoş geldin, {user?.name || 'Kullanıcı'}!</span>
+            <Link to="/dashboard" className="auth-btn dashboard-btn">📊 Dashboard</Link>
+            <button onClick={handleLogout} className="auth-btn logout-btn">Çıkış Yap</button>
+          </div>
+        ) : (
+          <div className="auth-buttons">
+            <Link to="/login" className="auth-btn login-btn">Giriş Yap</Link>
+            <Link to="/register" className="auth-btn register-btn">Kayıt Ol</Link>
+          </div>
+        )}
       </div>
 
       <div className="grid">
