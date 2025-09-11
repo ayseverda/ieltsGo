@@ -1,4 +1,5 @@
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import Response
 from fastapi.middleware.cors import CORSMiddleware
 import httpx
 import uvicorn
@@ -87,7 +88,30 @@ async def writing_proxy(endpoint: str, request_data: dict):
                 json=request_data,
                 timeout=30.0
             )
-            return response.json()
+            return Response(
+                content=response.text,
+                status_code=response.status_code,
+                media_type=response.headers.get("content-type", "application/json")
+            )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Writing module error: {str(e)}")
+
+@app.get("/api/writing/{endpoint:path}")
+async def writing_proxy_get(endpoint: str):
+    """
+    Writing modülüne GET isteklerini yönlendirir (ör: /topic)
+    """
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(
+                f"{MODULE_URLS['writing']}/{endpoint}",
+                timeout=30.0
+            )
+            return Response(
+                content=response.text,
+                status_code=response.status_code,
+                media_type=response.headers.get("content-type", "application/json")
+            )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Writing module error: {str(e)}")
 

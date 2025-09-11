@@ -1,8 +1,147 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowLeft, PenTool } from 'lucide-react';
+import axios from 'axios';
 
 const WritingModule: React.FC = () => {
+  const [essay, setEssay] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [result, setResult] = useState<any>(null);
+  const [topic, setTopic] = useState<string>('');
+  const [mode, setMode] = useState<'academic' | 'general' | ''>('');
+  const [task, setTask] = useState<'task1' | 'task2' | ''>('');
+  const [letterType, setLetterType] = useState<'formal' | 'informal' | ''>('');
+  const [visual, setVisual] = useState<any>(null);
+
+  const generateLocalVisual = (prev?: any) => {
+    const kinds = ['table', 'bar', 'pie'] as const;
+    const makeOnce = () => {
+      const pick = kinds[Math.floor(Math.random() * kinds.length)];
+      if (pick === 'table') {
+        const baseYear = 2015 + Math.floor(Math.random() * 6);
+        return {
+          type: 'table',
+          columns: ['Year', 'Category A', 'Category B'],
+          rows: [
+            [baseYear, 20 + Math.floor(Math.random() * 20), 15 + Math.floor(Math.random() * 20)],
+            [baseYear + 4, 30 + Math.floor(Math.random() * 25), 25 + Math.floor(Math.random() * 25)],
+          ],
+        };
+      }
+      if (pick === 'bar') {
+        const labels = ['A', 'B', 'C', 'D'];
+        const values = labels.map(() => 10 + Math.floor(Math.random() * 30));
+        return { type: 'bar', labels, values };
+      }
+      const labels = ['Online', 'In-person', 'Hybrid'];
+      const a = 30 + Math.floor(Math.random() * 40);
+      const b = 20 + Math.floor(Math.random() * 40);
+      const rest = Math.max(10, 100 - (a + b));
+      return { type: 'pie', labels, values: [a, b, rest] };
+    };
+
+    const isSame = (a: any, b: any) => {
+      if (!a || !b) return false;
+      if (a.type !== b.type) return false;
+      if (a.type === 'table') return JSON.stringify(a.rows) === JSON.stringify(b.rows);
+      return JSON.stringify(a.values) === JSON.stringify(b.values);
+    };
+
+    let v = makeOnce();
+    let guard = 0;
+    while (isSame(v, prev) && guard < 5) {
+      v = makeOnce();
+      guard += 1;
+    }
+    return v;
+  };
+
+  const refreshVisual = () => {
+    axios.get('http://localhost:8000/api/writing/visual', { params: { t: Date.now() }, timeout: 4000 })
+      .then(r => {
+        const next = r.data;
+        if (visual && next && next.type === visual.type && JSON.stringify(next) === JSON.stringify(visual)) {
+          setVisual(generateLocalVisual(visual));
+        } else {
+          setVisual(next);
+        }
+      })
+      .catch(() => setVisual(generateLocalVisual(visual)));
+  };
+
+  const handleEvaluate = async () => {
+    setError(null);
+    setResult(null);
+    if (!essay || essay.trim().length < 30) {
+      setError('Lütfen en az birkaç cümlelik bir essay yazın.');
+      return;
+    }
+    if (!mode) { setError('Lütfen Academic veya General Training seçin.'); return; }
+    if (!task) { setError('Lütfen Task 1 veya Task 2 seçin.'); return; }
+    if (mode === 'general' && task === 'task1' && !letterType) { setError('Lütfen mektup türünü seçin (formal/informal).'); return; }
+    try {
+      setLoading(true);
+      const res = await axios.post('http://localhost:8000/api/writing/evaluate', { essay, topic, mode, task, letterType });
+      setResult(normalizeResult(res.data));
+    } catch (e: any) {
+      setError(e?.response?.data?.detail || 'Değerlendirme sırasında hata oluştu.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSuggestTopic = async () => {
+    try {
+      const res = await axios.get('http://localhost:8000/api/writing/topic', { params: { mode, task, letterType } });
+      setTopic(res.data.topic || topic);
+    } catch (e) {
+      setError('Konu AI tarafından alınamadı. Lütfen backend\'in açık olduğundan ve API anahtarının doğru olduğundan emin olun.');
+    }
+  };
+
+  useEffect(() => {
+    // Sayfa yüklenince otomatik konu getir
+    if (mode && task) {
+      if (mode === 'academic' && task === 'task1') {
+        setTopic(''); // konu gereksiz
+        refreshVisual();
+      } else {
+        setVisual(null);
+        handleSuggestTopic();
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, task, letterType]);
+
+  function normalizeResult(data: any) {
+    const criteria = data?.criteria || {};
+    const toBandObj = (value: any) => {
+      if (value == null) return { band: undefined, comment: undefined };
+      if (typeof value === 'number') return { band: value, comment: undefined };
+      if (typeof value === 'object' && 'band' in value) return { band: value.band, comment: value.comment };
+      return { band: undefined, comment: String(value) };
+    };
+
+    const taskAchievement = toBandObj(criteria['Task Achievement'] ?? criteria['task_achievement']);
+    const coherenceCohesion = toBandObj(criteria['Coherence & Cohesion'] ?? criteria['coherence_cohesion']);
+    const lexicalResource = toBandObj(criteria['Lexical Resource'] ?? criteria['lexical_resource']);
+    const grammaticalRangeAccuracy = toBandObj(criteria['Grammatical Range & Accuracy'] ?? criteria['grammatical_range_accuracy']);
+
+    return {
+      overall_band: data?.overall_band,
+      strengths: data?.strengths || [],
+      weaknesses: data?.weaknesses || [],
+      suggestions: data?.suggestions || [],
+      criteria: {
+        taskAchievement,
+        coherenceCohesion,
+        lexicalResource,
+        grammaticalRangeAccuracy,
+      }
+    };
+  }
+
   return (
     <div className="container">
       <div className="card">
@@ -17,25 +156,234 @@ const WritingModule: React.FC = () => {
           </h1>
         </div>
 
-        <div className="grid">
+        {!mode || !task ? (
           <div className="card">
-            <h3>✍️ Task 1 - Grafik Analizi</h3>
-            <p>Grafik, tablo ve diyagramları analiz ederek yazı yazın</p>
-            <button className="btn">Başla</button>
+            <h3>🧭 Modül Seçimi</h3>
+            <div className="mt-3">
+              <button className="btn" onClick={() => { setMode('academic'); setTask(''); setResult(null); }}>Academic</button>
+              <span style={{ marginRight: 8 }} />
+              <button className="btn btn-secondary" onClick={() => { setMode('general'); setTask(''); setResult(null); }}>General Training</button>
+            </div>
+            {mode && (
+              <div className="mt-3">
+                <label>Görev</label>
+                <div className="mt-2">
+                  <button className="btn" onClick={() => { setTask('task1'); setResult(null); }}>Task 1</button>
+                  <span style={{ marginRight: 8 }} />
+                  <button className="btn btn-success" onClick={() => { setTask('task2'); setResult(null); }}>Task 2</button>
+                </div>
+                {mode === 'general' && task === 'task1' && (
+                  <div className="mt-3">
+                    <label>2️⃣ Task 1 – Letter Writing</label>
+                    <p>
+                      Bu bölümde AI size kısa bir mektup senaryosu (ör. şikâyet, davet, bilgi isteme) oluşturur. 
+                      100–150 kelimeyle; uygun hitap, ton ve kapanışla mektubu yazın. 
+                      Formal → resmi (manager, ofis); Informal → arkadaş/aile.
+                    </p>
+                    <div className="mt-2">
+                      <button className="btn" onClick={() => setLetterType('informal')}>Informal</button>
+                      <span style={{ marginRight: 8 }} />
+                      <button className="btn btn-secondary" onClick={() => setLetterType('formal')}>Formal</button>
+                    </div>
+                  </div>
+                )}
+                {mode === 'general' && task === 'task2' && (
+                  <div className="mt-3">
+                    <label>3️⃣ Task 2 – Essay Writing</label>
+                    <p>
+                      Bu bölümde AI, günlük yaşam veya toplumsal bir başlık üretir. 
+                      150–200 kelimeyle giriş-gelişme-sonuç, net argüman ve örneklerle yazın.
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
-
-          <div className="card">
-            <h3>📝 Task 2 - Essay Yazma</h3>
-            <p>Verilen konu hakkında görüş bildiren essay yazın</p>
-            <button className="btn btn-secondary">Başla</button>
+        ) : (
+        <div className="card">
+          <h3>📝 Yazım Alanı</h3>
+          <p>
+            {mode === 'general' && task === 'task1' && 'AI tarafından verilen senaryoya göre mektubunuzu yazın (100–150 kelime).'}
+            {mode === 'general' && task === 'task2' && 'AI tarafından verilen başlığa göre essay yazın (150–200 kelime).'}
+            {mode === 'academic' && task === 'task1' && 'Aşağıdaki tablo/diagram açıklamasına göre ~150 kelimelik kısa bir rapor yazın (nesnel, karşılaştırmalı).'}
+            {mode === 'academic' && task === 'task2' && 'Akademik bir essay (≈250 kelime) yazın: argüman + örnek + sonuç.'}
+          </p>
+          {mode === 'academic' && task === 'task1' && (
+            <div className="card" style={{ background: '#fafafa', border: '1px dashed #ccc' }}>
+              {!visual && <p>Görsel yükleniyor...</p>}
+              {visual?.type === 'table' && (
+                <>
+                  <p style={{ marginTop: 0, fontWeight: 600 }}>Sample Table</p>
+                  <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                    <thead>
+                      <tr>
+                        {visual.columns.map((c: string) => (
+                          <th key={c} style={{ border: '1px solid #ccc', padding: '6px', textAlign: c === 'Year' ? 'left' : 'right' }}>{c}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {visual.rows.map((row: any[], i: number) => (
+                        <tr key={i}>
+                          {row.map((v: any, j: number) => (
+                            <td key={j} style={{ border: '1px solid #ccc', padding: '6px', textAlign: j === 0 ? 'left' : 'right' }}>{v}</td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </>
+              )}
+              {visual?.type === 'bar' && (
+                <>
+                  <p style={{ marginTop: 0, fontWeight: 600 }}>Sample Bar Chart</p>
+                  <ul style={{ listStyle: 'none', paddingLeft: 0 }}>
+                    {visual.labels.map((label: string, i: number) => (
+                      <li key={i} style={{ display: 'flex', alignItems: 'center', marginBottom: 6 }}>
+                        <span style={{ width: 80 }}>{label}</span>
+                        <div style={{ background: '#667eea', height: 12, width: `${visual.values[i] * 5}px`, borderRadius: 4 }} />
+                        <span style={{ marginLeft: 8 }}>{visual.values[i]}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
+              {visual?.type === 'pie' && (
+                <>
+                  <p style={{ marginTop: 0, fontWeight: 600 }}>Sample Pie Breakdown</p>
+                  <ul style={{ paddingLeft: 18 }}>
+                    {visual.labels.map((label: string, i: number) => (
+                      <li key={i}>{label}: {visual.values[i]}%</li>
+                    ))}
+                  </ul>
+                </>
+              )}
+              <p style={{ fontSize: 12, color: '#555' }}>Hint: Trendleri karşılaştırın (artış/azalış), en yüksek/en düşük değerler, aradaki farklar.</p>
+              <div className="mt-2">
+                <button className="btn" onClick={refreshVisual}>Yeni Görsel</button>
+              </div>
+            </div>
+          )}
+          {mode === 'general' && task === 'task1' && (
+            <div className="mt-2">
+              <label>Mektup Türü</label>
+              <div className="mt-2">
+                <select
+                  className="form-control"
+                  value={letterType}
+                  onChange={(e) => setLetterType(e.target.value as 'formal' | 'informal' | '')}
+                  style={{ maxWidth: '260px' }}
+                >
+                  <option value="">Seçin...</option>
+                  <option value="informal">Informal (arkadaş/aile)</option>
+                  <option value="formal">Formal (manager/kurum)</option>
+                </select>
+              </div>
+            </div>
+          )}
+          <div className="mt-2">
+            <button
+              className="btn"
+              onClick={() => {
+                setTask('');
+                setEssay('');
+                setTopic('');
+                setResult(null);
+                setError(null);
+              }}
+            >
+              Görev Seçimine Dön
+            </button>
+            <span style={{ marginRight: 8 }} />
+            <button
+              className="btn btn-secondary"
+              onClick={() => {
+                setMode('');
+                setTask('');
+                setLetterType('');
+                setEssay('');
+                setTopic('');
+                setResult(null);
+                setError(null);
+              }}
+            >
+              Modül Seçimine Dön
+            </button>
           </div>
-
-          <div className="card">
-            <h3>🤖 AI Değerlendirme</h3>
-            <p>Yazılarınızı AI ile değerlendirin ve geri bildirim alın</p>
-            <button className="btn btn-success">Değerlendir</button>
+          {!(mode === 'academic' && task === 'task1') && (
+            <>
+              <label className="mt-3">Konu (AI tarafından atandı)</label>
+              <textarea
+                className="form-control"
+                style={{ minHeight: '90px' }}
+                value={topic}
+                readOnly
+              />
+              <div className="mt-2">
+                <button className="btn" onClick={handleSuggestTopic}>Yeni Konu</button>
+              </div>
+            </>
+          )}
+          <label className="mt-3">Essay</label>
+          <textarea
+            className="form-control"
+            style={{ minHeight: '200px' }}
+            placeholder="En az birkaç cümle yazın..."
+            value={essay}
+            onChange={(e) => setEssay(e.target.value)}
+          />
+          <div className="mt-3">
+            <button className="btn btn-success" onClick={handleEvaluate} disabled={loading}>
+              {loading ? 'Değerlendiriliyor...' : 'Değerlendir'}
+            </button>
           </div>
+          {error && (
+            <p style={{ color: '#b00020', marginTop: '10px' }}>{error}</p>
+          )}
         </div>
+        )}
+
+        {result && (
+          <div className="grid">
+            <div className="card">
+              <h3>📊 Genel Puan</h3>
+              <p style={{ fontSize: '2rem', fontWeight: 700 }}>{result.overall_band ?? '-'}</p>
+            </div>
+            <div className="card">
+              <h3>🧩 Kriterler</h3>
+              <ul>
+                <li>Task Achievement: <b>{result?.criteria?.taskAchievement?.band ?? '-'}</b> — {result?.criteria?.taskAchievement?.comment}</li>
+                <li>Coherence & Cohesion: <b>{result?.criteria?.coherenceCohesion?.band ?? '-'}</b> — {result?.criteria?.coherenceCohesion?.comment}</li>
+                <li>Lexical Resource: <b>{result?.criteria?.lexicalResource?.band ?? '-'}</b> — {result?.criteria?.lexicalResource?.comment}</li>
+                <li>Grammatical Range & Accuracy: <b>{result?.criteria?.grammaticalRangeAccuracy?.band ?? '-'}</b> — {result?.criteria?.grammaticalRangeAccuracy?.comment}</li>
+              </ul>
+            </div>
+            <div className="card">
+              <h3>✅ Güçlü Yönler</h3>
+              <ul>
+                {(result.strengths || []).map((s: string, i: number) => (
+                  <li key={i}>{s}</li>
+                ))}
+              </ul>
+            </div>
+            <div className="card">
+              <h3>⚠️ Zayıf Yönler</h3>
+              <ul>
+                {(result.weaknesses || []).map((s: string, i: number) => (
+                  <li key={i}>{s}</li>
+                ))}
+              </ul>
+            </div>
+            <div className="card">
+              <h3>💡 Öneriler</h3>
+              <ul>
+                {(result.suggestions || []).map((s: string, i: number) => (
+                  <li key={i}>{s}</li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
