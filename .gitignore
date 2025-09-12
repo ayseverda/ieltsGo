@@ -90,3 +90,18 @@ celerybeat.pid
 .mypy_cache/
 .dmypy.json
 dmypy.json
+
+# Test files
+test_*.py
+*_test.py
+
+# Temporary directories
+temp/
+tmp/
+
+# IDE specific
+.vscode/settings.json
+.idea/workspace.xml
+
+# MongoDB data
+data/

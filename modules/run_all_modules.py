@@ -9,7 +9,12 @@ def run_module(module_name, port):
     """Tek bir modülü çalıştırır"""
     try:
         print(f"🚀 {module_name} modülü başlatılıyor (Port: {port})...")
-        subprocess.run([sys.executable, f"{module_name}.py"], cwd=os.path.dirname(__file__))
+        venv_python = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".venv", "Scripts", "python.exe")
+        if os.path.exists(venv_python):
+            subprocess.run([venv_python, f"{module_name}.py"], cwd=os.path.dirname(__file__))
+        else:
+            print(f"❌ Virtual environment not found at {venv_python}")
+            subprocess.run([sys.executable, f"{module_name}.py"], cwd=os.path.dirname(__file__))
     except Exception as e:
         print(f"❌ {module_name} modülünde hata: {e}")
 
