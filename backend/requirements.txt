@@ -11,5 +11,8 @@ google-generativeai==0.3.2
 pyttsx3==2.90
 requests==2.31.0
 
+# Database
+motor==3.3.2
+
 # Optional: Google Cloud TTS (for future use)
 # google-cloud-texttospeech==2.29.0
