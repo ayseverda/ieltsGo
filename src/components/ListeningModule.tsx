@@ -1,20 +1,30 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, Headphones, Play, Pause, Volume2, Settings, Download } from 'lucide-react';
+import { ArrowLeft, Headphones, Play, Pause, Volume2, Settings, Download, Clock } from 'lucide-react';
 
-interface ListeningContent {
-  transcript: string;
+interface ListeningSection {
+  id: number;
+  title: string;
+  description: string;
+  audio_script: string;
   questions: Array<{
     id: number;
     question: string;
-    type: 'multiple_choice' | 'fill_in_blank' | 'true_false';
+    type: 'multiple_choice' | 'fill_in_blank' | 'true_false' | 'matching' | 'form_completion' | 'note_completion' | 'sentence_completion';
     options?: string[];
     correct_answer: number | string | boolean;
+    word_limit?: number;
   }>;
-  audio_script: string;
+  duration: number; // dakika
+}
+
+interface ListeningContent {
+  sections: ListeningSection[];
+  total_questions: number;
+  total_duration: number; // dakika
   topic: string;
   difficulty: string;
-  estimated_duration: number;
+  instructions: string;
 }
 
 interface TTSResponse {
@@ -37,6 +47,10 @@ const ListeningModule: React.FC = () => {
   const [showResults, setShowResults] = useState(false);
   const [score, setScore] = useState(0);
   const [showTranscript, setShowTranscript] = useState(false);
+  const [currentSection, setCurrentSection] = useState(0);
+  const [testStarted, setTestStarted] = useState(false);
+  const [timeLeft, setTimeLeft] = useState(0);
+  const [isPaused, setIsPaused] = useState(false);
 
   const topics = [
     'Education', 'Work', 'Travel', 'Health', 'Technology', 'Environment'
@@ -57,7 +71,7 @@ const ListeningModule: React.FC = () => {
   const generateListening = async () => {
     setIsGenerating(true);
     try {
-      const response = await fetch('http://localhost:8003/generate-listening', {
+      const response = await fetch('http://localhost:8003/generate-ielts-listening', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -65,7 +79,6 @@ const ListeningModule: React.FC = () => {
         body: JSON.stringify({
           topic: selectedTopic,
           difficulty: selectedDifficulty,
-          duration: 180,
           accent: selectedAccent
         }),
       });
@@ -75,7 +88,10 @@ const ListeningModule: React.FC = () => {
         setListeningContent(data);
         setUserAnswers({});
         setShowResults(false);
-        setShowTranscript(false); // Yeni listening oluşturulduğunda metni gizle
+        setShowTranscript(false);
+        setCurrentSection(0);
+        setTestStarted(false);
+        setTimeLeft(data.total_duration * 60); // dakikayı saniyeye çevir
       } else {
         alert('Listening içeriği oluşturulamadı!');
       }
@@ -191,33 +207,88 @@ const ListeningModule: React.FC = () => {
     }));
   };
 
+  // Timer effect
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    
+    if (testStarted && !isPaused && timeLeft > 0) {
+      interval = setInterval(() => {
+        setTimeLeft(prev => {
+          if (prev <= 1) {
+            // Süre bitti
+            setTestStarted(false);
+            checkAnswers();
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    }
+
+    return () => clearInterval(interval);
+  }, [testStarted, isPaused, timeLeft]);
+
+  const startTest = () => {
+    setTestStarted(true);
+    setIsPaused(false);
+  };
+
+  const pauseTest = () => {
+    setIsPaused(!isPaused);
+  };
+
+  const formatTime = (seconds: number) => {
+    const minutes = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${minutes}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  const nextSection = () => {
+    if (listeningContent && currentSection < listeningContent.sections.length - 1) {
+      setCurrentSection(currentSection + 1);
+    }
+  };
+
+  const prevSection = () => {
+    if (currentSection > 0) {
+      setCurrentSection(currentSection - 1);
+    }
+  };
+
   const checkAnswers = () => {
     if (!listeningContent) return;
 
     let correctCount = 0;
-    listeningContent.questions.forEach(question => {
-      const userAnswer = userAnswers[question.id];
-      const correctAnswer = question.correct_answer;
-      
-      // Farklı soru tiplerini kontrol et
-      if (question.type === 'fill_in_blank') {
-        // Boşluk doldurma için case-insensitive karşılaştırma
-        if (typeof userAnswer === 'string' && typeof correctAnswer === 'string') {
-          if (userAnswer.toLowerCase().trim() === correctAnswer.toLowerCase().trim()) {
+    let totalQuestions = 0;
+
+    listeningContent.sections.forEach(section => {
+      section.questions.forEach(question => {
+        totalQuestions++;
+        const userAnswer = userAnswers[question.id];
+        const correctAnswer = question.correct_answer;
+        
+        // Farklı soru tiplerini kontrol et
+        if (question.type === 'fill_in_blank' || question.type === 'form_completion' || 
+            question.type === 'note_completion' || question.type === 'sentence_completion') {
+          // Boşluk doldurma için case-insensitive karşılaştırma
+          if (typeof userAnswer === 'string' && typeof correctAnswer === 'string') {
+            if (userAnswer.toLowerCase().trim() === correctAnswer.toLowerCase().trim()) {
+              correctCount++;
+            }
+          }
+        } else {
+          // Multiple choice, true/false, matching için normal karşılaştırma
+          if (userAnswer === correctAnswer) {
             correctCount++;
           }
         }
-      } else {
-        // Multiple choice ve true/false için normal karşılaştırma
-        if (userAnswer === correctAnswer) {
-          correctCount++;
-        }
-      }
+      });
     });
 
-    const calculatedScore = Math.round((correctCount / listeningContent.questions.length) * 100);
+    const calculatedScore = Math.round((correctCount / totalQuestions) * 100);
     setScore(calculatedScore);
     setShowResults(true);
+    setTestStarted(false);
   };
 
   return (
@@ -288,246 +359,220 @@ const ListeningModule: React.FC = () => {
         </div>
 
         {/* Listening İçeriği */}
-        {listeningContent && (
+        {listeningContent && !testStarted && (
           <div className="card mb-4">
-            <h3>📝 {listeningContent.topic} - {listeningContent.difficulty}</h3>
-            <p><strong>Tahmini Süre:</strong> {Math.round(listeningContent.estimated_duration / 60)} dakika</p>
+            <h3>📝 IELTS Listening Test - {listeningContent.topic}</h3>
+            <p><strong>Toplam Süre:</strong> {listeningContent.total_duration} dakika</p>
+            <p><strong>Toplam Soru:</strong> {listeningContent.total_questions} soru</p>
+            <p><strong>Bölüm Sayısı:</strong> {listeningContent.sections.length} bölüm</p>
             
-            <div className="mb-3">
-              <button 
-                onClick={() => playText(listeningContent.audio_script)}
-                disabled={isGeneratingAudio}
-                className="btn btn-success"
-              >
-                {isGeneratingAudio ? (
-                  <>⏳ Ses üretiliyor...</>
-                ) : isPlaying ? (
-                  <><Pause /> Durdur</>
-                ) : currentAudio ? (
-                  <><Play /> Devam Et</>
-                ) : (
-                  <><Play /> Dinle</>
-                )}
-              </button>
-              {isGeneratingAudio && (
-                <span style={{ marginLeft: '10px', color: '#ffc107', fontSize: '14px' }}>
-                  🎵 {selectedAccent === 'british' ? 'İngiliz' : selectedAccent === 'american' ? 'Amerikan' : 'Avustralya'} aksanında ses üretiliyor... (10-15 saniye)
-                </span>
-              )}
-              {isPlaying && (
-                <span style={{ marginLeft: '10px', color: '#28a745', fontSize: '14px' }}>
-                  🔊 {selectedAccent === 'british' ? 'İngiliz' : selectedAccent === 'american' ? 'Amerikan' : 'Avustralya'} aksanında oynatılıyor...
-                </span>
-              )}
+            <div className="ielts-instructions">
+              <h4>📋 Sınav Talimatları:</h4>
+              <p>{listeningContent.instructions}</p>
             </div>
 
-            <div className="mb-4">
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
-                <h4 style={{ margin: 0 }}>📄 Metin:</h4>
-                <button 
-                  onClick={() => setShowTranscript(!showTranscript)}
-                  className="btn"
-                  style={{ 
-                    padding: '5px 15px', 
-                    fontSize: '12px',
-                    background: showTranscript ? '#dc3545' : '#007bff',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '4px',
-                    cursor: 'pointer'
-                  }}
-                >
-                  {showTranscript ? '👁️ Gizle' : '👁️ Göster'}
-                </button>
-              </div>
-              {showTranscript && (
-                <div style={{ 
-                  backgroundColor: '#f8f9fa', 
-                  padding: '15px', 
-                  borderRadius: '8px',
-                  border: '1px solid #dee2e6',
-                  maxHeight: '200px',
-                  overflowY: 'auto'
-                }}>
-                  {listeningContent.audio_script}
-                </div>
-              )}
-              {!showTranscript && (
-                <div style={{ 
-                  backgroundColor: '#e9ecef', 
-                  padding: '15px', 
-                  borderRadius: '8px',
-                  border: '1px solid #dee2e6',
-                  textAlign: 'center',
-                  color: '#6c757d',
-                  fontStyle: 'italic'
-                }}>
-                  Metin gizli - "Göster" butonuna tıklayarak görüntüleyebilirsin
-                </div>
-              )}
-            </div>
-
-            {/* Sorular */}
-            <div className="mb-4">
-              <h4>❓ Sorular:</h4>
-              {listeningContent.questions.map((question, index) => (
-                <div key={question.id} className="mb-3" style={{ 
-                  padding: '15px', 
-                  border: '1px solid #dee2e6', 
-                  borderRadius: '8px' 
-                }}>
-                  <p><strong>{index + 1}. {question.question}</strong></p>
-                  
-                  {/* Multiple Choice Sorular */}
-                  {question.type === 'multiple_choice' && question.options && (
-                    <div>
-                      {question.options.map((option, optionIndex) => (
-                        <label key={optionIndex} style={{ display: 'block', margin: '5px 0' }}>
-                          <input
-                            type="radio"
-                            name={`question-${question.id}`}
-                            value={optionIndex}
-                            checked={userAnswers[question.id] === optionIndex}
-                            onChange={() => handleAnswerSelect(question.id, optionIndex)}
-                            style={{ marginRight: '8px' }}
-                          />
-                          {String.fromCharCode(65 + optionIndex)}. {option}
-                        </label>
-                      ))}
-                    </div>
-                  )}
-
-                  {/* Boşluk Doldurma Sorular */}
-                  {question.type === 'fill_in_blank' && (
-                    <div>
-                      <input
-                        type="text"
-                        value={typeof userAnswers[question.id] === 'string' ? userAnswers[question.id] as string : ''}
-                        onChange={(e) => handleAnswerSelect(question.id, e.target.value)}
-                        placeholder="Cevabınızı yazın..."
-                        style={{
-                          width: '100%',
-                          padding: '8px 12px',
-                          border: '1px solid #ddd',
-                          borderRadius: '4px',
-                          fontSize: '14px',
-                          marginTop: '5px'
-                        }}
-                      />
-                    </div>
-                  )}
-
-                  {/* Doğru/Yanlış Sorular */}
-                  {question.type === 'true_false' && (
-                    <div>
-                      <label style={{ display: 'block', margin: '5px 0' }}>
-                        <input
-                          type="radio"
-                          name={`question-${question.id}`}
-                          value="true"
-                          checked={userAnswers[question.id] === true}
-                          onChange={() => handleAnswerSelect(question.id, true)}
-                          style={{ marginRight: '8px' }}
-                        />
-                        True (Doğru)
-                      </label>
-                      <label style={{ display: 'block', margin: '5px 0' }}>
-                        <input
-                          type="radio"
-                          name={`question-${question.id}`}
-                          value="false"
-                          checked={userAnswers[question.id] === false}
-                          onChange={() => handleAnswerSelect(question.id, false)}
-                          style={{ marginRight: '8px' }}
-                        />
-                        False (Yanlış)
-                      </label>
-                    </div>
-                  )}
+            <div className="sections-overview">
+              <h4>📚 Bölümler:</h4>
+              {listeningContent.sections.map((section, index) => (
+                <div key={section.id} className="section-preview">
+                  <h5>Bölüm {section.id}: {section.title}</h5>
+                  <p>{section.description}</p>
+                  <p><strong>Soru Sayısı:</strong> {section.questions.length} | <strong>Süre:</strong> {section.duration} dakika</p>
                 </div>
               ))}
             </div>
 
-            <button 
-              onClick={checkAnswers}
-              className="btn btn-primary"
-              disabled={Object.keys(userAnswers).length !== listeningContent.questions.length}
-            >
-              📊 Cevapları Kontrol Et
-            </button>
+            <div className="text-center mt-4">
+              <button 
+                onClick={startTest}
+                className="btn btn-primary"
+                style={{ fontSize: '1.2rem', padding: '15px 30px' }}
+              >
+                🎧 Sınavı Başlat
+              </button>
+            </div>
+          </div>
+        )}
 
-            {/* Sonuçlar */}
-            {showResults && (
-              <div className="mt-4" style={{ 
-                padding: '20px', 
-                backgroundColor: score >= 70 ? '#d4edda' : '#f8d7da',
-                border: `1px solid ${score >= 70 ? '#c3e6cb' : '#f5c6cb'}`,
-                borderRadius: '8px'
-              }}>
-                <h4>🎯 Sonuçlar</h4>
-                <p><strong>Puanınız:</strong> {score}/100</p>
-                <p><strong>Durum:</strong> {score >= 70 ? '✅ Başarılı' : '❌ Tekrar Deneyin'}</p>
+        {/* Sınav Arayüzü */}
+        {listeningContent && testStarted && (
+          <div className="card mb-4">
+            {/* Sınav Header */}
+            <div className="exam-header">
+              <div className="exam-info">
+                <h3>🎧 IELTS Listening Test</h3>
+                <p>Bölüm {currentSection + 1} / {listeningContent.sections.length}</p>
+              </div>
+              
+              <div className="exam-controls">
+                <div className="timer-display">
+                  <Clock className="icon" />
+                  <span className="timer-text">{formatTime(timeLeft)}</span>
+                </div>
                 
-                <div className="mt-3">
-                  <h5>Doğru Cevaplar:</h5>
-                  {listeningContent.questions.map((question, index) => {
-                    const userAnswer = userAnswers[question.id];
-                    const correctAnswer = question.correct_answer;
-                    
-                    let isCorrect = false;
-                    let correctAnswerText = '';
-                    
-                    if (question.type === 'fill_in_blank') {
-                      if (typeof userAnswer === 'string' && typeof correctAnswer === 'string') {
-                        isCorrect = userAnswer.toLowerCase().trim() === correctAnswer.toLowerCase().trim();
-                      }
-                      correctAnswerText = correctAnswer as string;
-                    } else if (question.type === 'true_false') {
-                      isCorrect = userAnswer === correctAnswer;
-                      correctAnswerText = correctAnswer ? 'True' : 'False';
-                    } else {
-                      isCorrect = userAnswer === correctAnswer;
-                      // Multiple choice için doğru seçeneği göster
-                      if (question.type === 'multiple_choice') {
-                        const correctIndex = correctAnswer as number;
-                        if (question.options && question.options.length > 0 && correctIndex >= 0 && correctIndex < question.options.length) {
-                          const optionText = question.options[correctIndex];
-                          correctAnswerText = `${String.fromCharCode(65 + correctIndex)}. ${optionText}`;
-                        } else {
-                          // Fallback: sadece harfi göster
-                          correctAnswerText = `${String.fromCharCode(65 + correctIndex)}`;
-                        }
-                      } else {
-                        correctAnswerText = `${String.fromCharCode(65 + (correctAnswer as number))}`;
-                      }
-                    }
-                    
-                    return (
-                      <div key={question.id} style={{ 
-                        margin: '5px 0',
-                        color: isCorrect ? '#155724' : '#721c24'
-                      }}>
-                        <strong>{index + 1}.</strong> {isCorrect ? '✅' : '❌'} 
-                        Doğru cevap: {correctAnswerText}
-                        {!isCorrect && userAnswer !== undefined && (
-                          <span style={{ color: '#721c24' }}>
-                            {' '}(Senin cevabın: {
-                              typeof userAnswer === 'boolean' 
-                                ? (userAnswer ? 'True' : 'False')
-                                : typeof userAnswer === 'number' && question.type === 'multiple_choice'
-                                ? `${String.fromCharCode(65 + userAnswer)}. ${question.options?.[userAnswer] || ''}`
-                                : userAnswer
-                            })
-                          </span>
-                        )}
-                      </div>
-                    );
-                  })}
+                <div className="control-buttons">
+                  <button 
+                    className="btn btn-secondary"
+                    onClick={pauseTest}
+                  >
+                    {isPaused ? <Play className="icon" /> : <Pause className="icon" />}
+                    {isPaused ? 'Devam Et' : 'Duraklat'}
+                  </button>
+                  
+                  <button 
+                    className="btn btn-danger"
+                    onClick={checkAnswers}
+                  >
+                    Sınavı Bitir
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Mevcut Bölüm */}
+            {listeningContent.sections[currentSection] && (
+              <div className="current-section">
+                <h4>Bölüm {listeningContent.sections[currentSection].id}: {listeningContent.sections[currentSection].title}</h4>
+                <p>{listeningContent.sections[currentSection].description}</p>
+                
+                <div className="section-controls">
+                  <button 
+                    onClick={() => playText(listeningContent.sections[currentSection].audio_script)}
+                    disabled={isGeneratingAudio}
+                    className="btn btn-success"
+                  >
+                    {isGeneratingAudio ? (
+                      <>⏳ Ses üretiliyor...</>
+                    ) : isPlaying ? (
+                      <><Pause /> Durdur</>
+                    ) : currentAudio ? (
+                      <><Play /> Devam Et</>
+                    ) : (
+                      <><Play /> Dinle</>
+                    )}
+                  </button>
+                  
+                  <button 
+                    onClick={() => setShowTranscript(!showTranscript)}
+                    className="btn"
+                    style={{ 
+                      padding: '5px 15px', 
+                      fontSize: '12px',
+                      background: showTranscript ? '#dc3545' : '#007bff',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '4px',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    {showTranscript ? '👁️ Gizle' : '👁️ Göster'}
+                  </button>
+                </div>
+
+                {showTranscript && (
+                  <div className="transcript">
+                    <h5>📄 Metin:</h5>
+                    <div className="transcript-content">
+                      {listeningContent.sections[currentSection].audio_script}
+                    </div>
+                  </div>
+                )}
+
+                {/* Bölüm Soruları */}
+                <div className="section-questions">
+                  <h5>❓ Sorular:</h5>
+                  {listeningContent.sections[currentSection].questions.map((question, index) => (
+                    <div key={question.id} className="question-item">
+                      <p><strong>{index + 1}. {question.question}</strong></p>
+                      
+                      {/* Multiple Choice Sorular */}
+                      {question.type === 'multiple_choice' && question.options && (
+                        <div>
+                          {question.options.map((option, optionIndex) => (
+                            <label key={optionIndex} className="option-label">
+                              <input
+                                type="radio"
+                                name={`question-${question.id}`}
+                                value={optionIndex}
+                                checked={userAnswers[question.id] === optionIndex}
+                                onChange={() => handleAnswerSelect(question.id, optionIndex)}
+                              />
+                              {String.fromCharCode(65 + optionIndex)}. {option}
+                            </label>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Boşluk Doldurma Sorular */}
+                      {(question.type === 'fill_in_blank' || question.type === 'form_completion' || 
+                        question.type === 'note_completion' || question.type === 'sentence_completion') && (
+                        <div>
+                          <input
+                            type="text"
+                            value={typeof userAnswers[question.id] === 'string' ? userAnswers[question.id] as string : ''}
+                            onChange={(e) => handleAnswerSelect(question.id, e.target.value)}
+                            placeholder={`Cevabınızı yazın${question.word_limit ? ` (max ${question.word_limit} kelime)` : ''}...`}
+                            className="answer-input"
+                          />
+                        </div>
+                      )}
+
+                      {/* Doğru/Yanlış Sorular */}
+                      {question.type === 'true_false' && (
+                        <div>
+                          <label className="option-label">
+                            <input
+                              type="radio"
+                              name={`question-${question.id}`}
+                              value="true"
+                              checked={userAnswers[question.id] === true}
+                              onChange={() => handleAnswerSelect(question.id, true)}
+                            />
+                            True (Doğru)
+                          </label>
+                          <label className="option-label">
+                            <input
+                              type="radio"
+                              name={`question-${question.id}`}
+                              value="false"
+                              checked={userAnswers[question.id] === false}
+                              onChange={() => handleAnswerSelect(question.id, false)}
+                            />
+                            False (Yanlış)
+                          </label>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                {/* Bölüm Navigasyonu */}
+                <div className="section-navigation">
+                  <button 
+                    className="btn btn-secondary"
+                    onClick={prevSection}
+                    disabled={currentSection === 0}
+                  >
+                    ← Önceki Bölüm
+                  </button>
+                  
+                  <span className="section-indicator">
+                    Bölüm {currentSection + 1} / {listeningContent.sections.length}
+                  </span>
+                  
+                  <button 
+                    className="btn btn-primary"
+                    onClick={nextSection}
+                    disabled={currentSection === listeningContent.sections.length - 1}
+                  >
+                    Sonraki Bölüm →
+                  </button>
                 </div>
               </div>
             )}
           </div>
         )}
+
 
         {/* Örnek İçerik */}
         {!listeningContent && (

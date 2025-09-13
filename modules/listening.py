@@ -1,4 +1,5 @@
 from fastapi import FastAPI, File, UploadFile, HTTPException
+from fastapi.responses import Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import uvicorn
@@ -25,7 +26,7 @@ app = FastAPI(title="IELTS Listening Module API", version="1.0.0")
 # CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=["http://localhost:3000", "http://localhost:3001"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -55,6 +56,11 @@ class GenerateListeningRequest(BaseModel):
     duration: int = 180  # saniye
     accent: str = "british"  # british, american, australian
 
+class GenerateIELTSListeningRequest(BaseModel):
+    topic: str
+    difficulty: str = "intermediate"  # beginner, intermediate, advanced
+    accent: str = "british"  # british, american, australian
+
 class GeneratedListeningResponse(BaseModel):
     transcript: str
     questions: List[dict]
@@ -62,6 +68,22 @@ class GeneratedListeningResponse(BaseModel):
     topic: str
     difficulty: str
     estimated_duration: int
+
+class IELTSListeningSection(BaseModel):
+    id: int
+    title: str
+    description: str
+    audio_script: str
+    questions: List[dict]
+    duration: int  # dakika
+
+class IELTSListeningResponse(BaseModel):
+    sections: List[IELTSListeningSection]
+    total_questions: int
+    total_duration: int  # dakika
+    topic: str
+    difficulty: str
+    instructions: str
 
 class TTSRequest(BaseModel):
     text: str
@@ -271,6 +293,500 @@ Finally, I'd like to discuss some recommendations for the future. Based on curre
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"AI üretim hatası: {str(e)}")
+
+@app.post("/generate-ielts-listening", response_model=IELTSListeningResponse)
+async def generate_ielts_listening(request: GenerateIELTSListeningRequest):
+    """
+    Gerçek IELTS Listening formatında 4 bölüm, 40 soru üretir
+    """
+    try:
+        # IELTS Listening formatı için prompt
+        prompt = f"""
+        Create a complete IELTS Listening test about {request.topic} at {request.difficulty} level.
+        
+        Generate 4 sections with exactly 40 questions total (10 questions per section):
+        
+        Section 1: Social context (conversation between 2 people) - 10 questions
+        Section 2: Social context (monologue) - 10 questions  
+        Section 3: Educational context (conversation between 2-4 people) - 10 questions
+        Section 4: Academic context (monologue/lecture) - 10 questions
+        
+        Each section should have realistic IELTS question types:
+        - Multiple choice (A, B, C, D)
+        - Fill in the blank (1-3 words)
+        - Form completion
+        - Note completion
+        - Sentence completion
+        - True/False/Not Given
+        - Matching
+        
+        Return ONLY this JSON format (no other text):
+        {{
+            "sections": [
+                {{
+                    "id": 1,
+                    "title": "Section 1: Social Conversation",
+                    "description": "A conversation between two people about {request.topic}",
+                    "audio_script": "Realistic conversation script (200-300 words) about {request.topic}",
+                    "questions": [
+                        {{
+                            "id": 1,
+                            "question": "What is the main topic of the conversation?",
+                            "type": "multiple_choice",
+                            "options": ["A) Option 1", "B) Option 2", "C) Option 3", "D) Option 4"],
+                            "correct_answer": 0
+                        }},
+                        {{
+                            "id": 2,
+                            "question": "Complete the sentence: The speaker mentions that _____ is important.",
+                            "type": "fill_in_blank",
+                            "correct_answer": "education",
+                            "word_limit": 2
+                        }}
+                    ],
+                    "duration": 7
+                }},
+                {{
+                    "id": 2,
+                    "title": "Section 2: Social Monologue",
+                    "description": "A monologue about {request.topic}",
+                    "audio_script": "Realistic monologue script (200-300 words) about {request.topic}",
+                    "questions": [
+                        {{
+                            "id": 11,
+                            "question": "According to the speaker, what is the main benefit?",
+                            "type": "multiple_choice",
+                            "options": ["A) Option 1", "B) Option 2", "C) Option 3", "D) Option 4"],
+                            "correct_answer": 1
+                        }}
+                    ],
+                    "duration": 8
+                }},
+                {{
+                    "id": 3,
+                    "title": "Section 3: Educational Discussion",
+                    "description": "A discussion about {request.topic} in educational context",
+                    "audio_script": "Realistic educational discussion script (250-350 words) about {request.topic}",
+                    "questions": [
+                        {{
+                            "id": 21,
+                            "question": "What does the professor recommend?",
+                            "type": "multiple_choice",
+                            "options": ["A) Option 1", "B) Option 2", "C) Option 3", "D) Option 4"],
+                            "correct_answer": 2
+                        }}
+                    ],
+                    "duration": 8
+                }},
+                {{
+                    "id": 4,
+                    "title": "Section 4: Academic Lecture",
+                    "description": "An academic lecture about {request.topic}",
+                    "audio_script": "Realistic academic lecture script (300-400 words) about {request.topic}",
+                    "questions": [
+                        {{
+                            "id": 31,
+                            "question": "According to the lecture, what is the key finding?",
+                            "type": "multiple_choice",
+                            "options": ["A) Option 1", "B) Option 2", "C) Option 3", "D) Option 4"],
+                            "correct_answer": 3
+                        }}
+                    ],
+                    "duration": 7
+                }}
+            ],
+            "total_questions": 40,
+            "total_duration": 30,
+            "topic": "{request.topic}",
+            "difficulty": "{request.difficulty}",
+            "instructions": "You will hear a number of different recordings and you will have to answer questions on what you hear. There will be time for you to read the instructions and questions and you will have a chance to check your work. All the recordings will be played once only. The test is in 4 sections. At the end of the test you will be given 10 minutes to transfer your answers to an answer sheet."
+        }}
+        
+        IMPORTANT: 
+        - Return ONLY the JSON object, no explanations
+        - Each section must have exactly 10 questions
+        - Use realistic IELTS question types
+        - Audio scripts should be natural and conversational
+        - Questions should test listening comprehension, not reading
+        - Make sure all correct_answer values match the question types
+        """
+
+        response = model.generate_content(prompt)
+        
+        # JSON'u parse et
+        import json
+        import re
+        
+        try:
+            response_text = response.text.strip()
+            json_match = re.search(r'```json\s*(.*?)\s*```', response_text, re.DOTALL)
+            if json_match:
+                json_text = json_match.group(1)
+            else:
+                json_text = response_text
+            
+            data = json.loads(json_text)
+            
+        except Exception as e:
+            print(f"JSON parse hatası: {e}")
+            print(f"Gemini yanıtı: {response.text}")
+            print("Fallback IELTS data kullanılıyor...")
+            
+            # Fallback IELTS data
+            data = {
+                "sections": [
+                    {
+                        "id": 1,
+                        "title": "Section 1: Social Conversation",
+                        "description": f"A conversation between two people about {request.topic}",
+                        "audio_script": f"Hello, welcome to our information session about {request.topic}. I'm Sarah and this is my colleague Mark. Today we'll be discussing the main aspects of {request.topic} and how it affects our daily lives. Let me start by explaining the basic concepts and then Mark will share some practical examples from his experience.",
+                        "questions": [
+                            {
+                                "id": 1,
+                                "question": "What is the main topic of this conversation?",
+                                "type": "multiple_choice",
+                                "options": [
+                                    f"A) Introduction to {request.topic}",
+                                    f"B) Advanced concepts of {request.topic}",
+                                    f"C) History of {request.topic}",
+                                    f"D) Future of {request.topic}"
+                                ],
+                                "correct_answer": 0
+                            },
+                            {
+                                "id": 2,
+                                "question": f"Complete the sentence: The speakers will discuss _____ aspects of {request.topic}.",
+                                "type": "fill_in_blank",
+                                "correct_answer": "main",
+                                "word_limit": 1
+                            },
+                            {
+                                "id": 3,
+                                "question": "Who will share practical examples?",
+                                "type": "multiple_choice",
+                                "options": ["A) Sarah", "B) Mark", "C) Both speakers", "D) Neither speaker"],
+                                "correct_answer": 1
+                            },
+                            {
+                                "id": 4,
+                                "question": f"Complete the form: Topic: {request.topic}, Speaker 1: _____, Speaker 2: _____",
+                                "type": "form_completion",
+                                "correct_answer": "Sarah, Mark",
+                                "word_limit": 2
+                            },
+                            {
+                                "id": 5,
+                                "question": "The conversation is part of an information session.",
+                                "type": "true_false",
+                                "correct_answer": True
+                            },
+                            {
+                                "id": 6,
+                                "question": "What will be discussed first?",
+                                "type": "multiple_choice",
+                                "options": ["A) Practical examples", "B) Basic concepts", "C) Advanced topics", "D) Future plans"],
+                                "correct_answer": 1
+                            },
+                            {
+                                "id": 7,
+                                "question": f"Complete the note: {request.topic} affects our _____ lives.",
+                                "type": "note_completion",
+                                "correct_answer": "daily",
+                                "word_limit": 1
+                            },
+                            {
+                                "id": 8,
+                                "question": "How many speakers are there?",
+                                "type": "multiple_choice",
+                                "options": ["A) One", "B) Two", "C) Three", "D) Four"],
+                                "correct_answer": 1
+                            },
+                            {
+                                "id": 9,
+                                "question": f"Complete the sentence: Mark will share examples from his _____.",
+                                "type": "sentence_completion",
+                                "correct_answer": "experience",
+                                "word_limit": 1
+                            },
+                            {
+                                "id": 10,
+                                "question": "The session is about advanced topics only.",
+                                "type": "true_false",
+                                "correct_answer": False
+                            }
+                        ],
+                        "duration": 7
+                    },
+                    {
+                        "id": 2,
+                        "title": "Section 2: Social Monologue",
+                        "description": f"A monologue about {request.topic}",
+                        "audio_script": f"Good morning everyone. Today I'd like to talk about {request.topic} and its importance in modern society. This topic has become increasingly relevant over the past decade, and I believe it's essential for everyone to understand its implications. Let me share some key insights and practical advice that you can apply in your daily life.",
+                        "questions": [
+                            {
+                                "id": 11,
+                                "question": "What is the main focus of this talk?",
+                                "type": "multiple_choice",
+                                "options": [
+                                    f"A) History of {request.topic}",
+                                    f"B) Importance of {request.topic}",
+                                    f"C) Problems with {request.topic}",
+                                    f"D) Future of {request.topic}"
+                                ],
+                                "correct_answer": 1
+                            },
+                            {
+                                "id": 12,
+                                "question": f"Complete the sentence: {request.topic} has become _____ relevant.",
+                                "type": "fill_in_blank",
+                                "correct_answer": "increasingly",
+                                "word_limit": 1
+                            },
+                            {
+                                "id": 13,
+                                "question": "How long has this topic been relevant?",
+                                "type": "multiple_choice",
+                                "options": ["A) 5 years", "B) 10 years", "C) 15 years", "D) 20 years"],
+                                "correct_answer": 1
+                            },
+                            {
+                                "id": 14,
+                                "question": "What will the speaker share?",
+                                "type": "multiple_choice",
+                                "options": ["A) Only problems", "B) Only solutions", "C) Key insights and advice", "D) Historical facts"],
+                                "correct_answer": 2
+                            },
+                            {
+                                "id": 15,
+                                "question": f"Complete the note: Topic: {request.topic}, Focus: _____ in modern society",
+                                "type": "note_completion",
+                                "correct_answer": "importance",
+                                "word_limit": 1
+                            },
+                            {
+                                "id": 16,
+                                "question": "The speaker believes this topic is essential for everyone.",
+                                "type": "true_false",
+                                "correct_answer": True
+                            },
+                            {
+                                "id": 17,
+                                "question": "What can listeners apply?",
+                                "type": "multiple_choice",
+                                "options": ["A) Only theory", "B) Only practice", "C) Practical advice", "D) Historical knowledge"],
+                                "correct_answer": 2
+                            },
+                            {
+                                "id": 18,
+                                "question": f"Complete the sentence: The advice can be applied in _____ life.",
+                                "type": "sentence_completion",
+                                "correct_answer": "daily",
+                                "word_limit": 1
+                            },
+                            {
+                                "id": 19,
+                                "question": "When is this talk taking place?",
+                                "type": "multiple_choice",
+                                "options": ["A) Afternoon", "B) Evening", "C) Morning", "D) Night"],
+                                "correct_answer": 2
+                            },
+                            {
+                                "id": 20,
+                                "question": "The speaker will only discuss theoretical concepts.",
+                                "type": "true_false",
+                                "correct_answer": False
+                            }
+                        ],
+                        "duration": 8
+                    },
+                    {
+                        "id": 3,
+                        "title": "Section 3: Educational Discussion",
+                        "description": f"A discussion about {request.topic} in educational context",
+                        "audio_script": f"Professor: Welcome to today's seminar on {request.topic}. I'm Professor Johnson and I'm joined by my research assistant, Emma. Today we'll be exploring the educational aspects of {request.topic} and how it's being taught in universities. Emma, could you start by sharing your research findings? Emma: Thank you, Professor. My research shows that students are increasingly interested in {request.topic}, particularly in how it relates to their future careers. I've found that practical applications are more effective than theoretical approaches.",
+                        "questions": [
+                            {
+                                "id": 21,
+                                "question": "What is the context of this discussion?",
+                                "type": "multiple_choice",
+                                "options": [
+                                    f"A) Business meeting about {request.topic}",
+                                    f"B) Educational seminar about {request.topic}",
+                                    f"C) Social gathering about {request.topic}",
+                                    f"D) Medical consultation about {request.topic}"
+                                ],
+                                "correct_answer": 1
+                            },
+                            {
+                                "id": 22,
+                                "question": "Who is Professor Johnson?",
+                                "type": "multiple_choice",
+                                "options": ["A) Student", "B) Research assistant", "C) Professor", "D) Visitor"],
+                                "correct_answer": 2
+                            },
+                            {
+                                "id": 23,
+                                "question": f"Complete the sentence: Students are _____ interested in {request.topic}.",
+                                "type": "fill_in_blank",
+                                "correct_answer": "increasingly",
+                                "word_limit": 1
+                            },
+                            {
+                                "id": 24,
+                                "question": "What does Emma research?",
+                                "type": "multiple_choice",
+                                "options": ["A) History", "B) Science", "C) Educational aspects", "D) Technology"],
+                                "correct_answer": 2
+                            },
+                            {
+                                "id": 25,
+                                "question": f"Complete the note: Research focus: How {request.topic} relates to _____ careers",
+                                "type": "note_completion",
+                                "correct_answer": "future",
+                                "word_limit": 1
+                            },
+                            {
+                                "id": 26,
+                                "question": "Emma is a student.",
+                                "type": "true_false",
+                                "correct_answer": False
+                            },
+                            {
+                                "id": 27,
+                                "question": "What does Emma find more effective?",
+                                "type": "multiple_choice",
+                                "options": ["A) Theoretical approaches", "B) Practical applications", "C) Both equally", "D) Neither approach"],
+                                "correct_answer": 1
+                            },
+                            {
+                                "id": 28,
+                                "question": f"Complete the sentence: The seminar explores _____ aspects of {request.topic}.",
+                                "type": "sentence_completion",
+                                "correct_answer": "educational",
+                                "word_limit": 1
+                            },
+                            {
+                                "id": 29,
+                                "question": "How many people are speaking?",
+                                "type": "multiple_choice",
+                                "options": ["A) One", "B) Two", "C) Three", "D) Four"],
+                                "correct_answer": 1
+                            },
+                            {
+                                "id": 30,
+                                "question": "The discussion is about teaching methods only.",
+                                "type": "true_false",
+                                "correct_answer": False
+                            }
+                        ],
+                        "duration": 8
+                    },
+                    {
+                        "id": 4,
+                        "title": "Section 4: Academic Lecture",
+                        "description": f"An academic lecture about {request.topic}",
+                        "audio_script": f"Today's lecture focuses on the academic research surrounding {request.topic}. This is a complex field that has evolved significantly over the past two decades. Recent studies have shown that {request.topic} plays a crucial role in various academic disciplines. The research methodology has become more sophisticated, and we now have access to data that was previously unavailable. This has led to new insights and a better understanding of the fundamental principles underlying {request.topic}.",
+                        "questions": [
+                            {
+                                "id": 31,
+                                "question": "What is the main topic of this lecture?",
+                                "type": "multiple_choice",
+                                "options": [
+                                    f"A) History of {request.topic}",
+                                    f"B) Academic research about {request.topic}",
+                                    f"C) Problems with {request.topic}",
+                                    f"D) Future predictions about {request.topic}"
+                                ],
+                                "correct_answer": 1
+                            },
+                            {
+                                "id": 32,
+                                "question": f"Complete the sentence: {request.topic} has evolved _____ over the past two decades.",
+                                "type": "fill_in_blank",
+                                "correct_answer": "significantly",
+                                "word_limit": 1
+                            },
+                            {
+                                "id": 33,
+                                "question": "How long has this field been evolving?",
+                                "type": "multiple_choice",
+                                "options": ["A) 10 years", "B) 15 years", "C) 20 years", "D) 25 years"],
+                                "correct_answer": 2
+                            },
+                            {
+                                "id": 34,
+                                "question": "What do recent studies show?",
+                                "type": "multiple_choice",
+                                "options": [
+                                    f"A) {request.topic} is unimportant",
+                                    f"B) {request.topic} plays a crucial role",
+                                    f"C) {request.topic} is declining",
+                                    f"D) {request.topic} is too complex"
+                                ],
+                                "correct_answer": 1
+                            },
+                            {
+                                "id": 35,
+                                "question": f"Complete the note: Research methodology has become more _____",
+                                "type": "note_completion",
+                                "correct_answer": "sophisticated",
+                                "word_limit": 1
+                            },
+                            {
+                                "id": 36,
+                                "question": "The field is simple and easy to understand.",
+                                "type": "true_false",
+                                "correct_answer": False
+                            },
+                            {
+                                "id": 37,
+                                "question": "What do we now have access to?",
+                                "type": "multiple_choice",
+                                "options": ["A) Old data only", "B) No data", "C) Previously unavailable data", "D) Limited data"],
+                                "correct_answer": 2
+                            },
+                            {
+                                "id": 38,
+                                "question": f"Complete the sentence: This has led to new _____ and better understanding.",
+                                "type": "sentence_completion",
+                                "correct_answer": "insights",
+                                "word_limit": 1
+                            },
+                            {
+                                "id": 39,
+                                "question": "What is the focus of the lecture?",
+                                "type": "multiple_choice",
+                                "options": ["A) Practical applications", "B) Academic research", "C) Social aspects", "D) Economic factors"],
+                                "correct_answer": 1
+                            },
+                            {
+                                "id": 40,
+                                "question": "The research has not provided new insights.",
+                                "type": "true_false",
+                                "correct_answer": False
+                            }
+                        ],
+                        "duration": 7
+                    }
+                ],
+                "total_questions": 40,
+                "total_duration": 30,
+                "topic": request.topic,
+                "difficulty": request.difficulty,
+                "instructions": "You will hear a number of different recordings and you will have to answer questions on what you hear. There will be time for you to read the instructions and questions and you will have a chance to check your work. All the recordings will be played once only. The test is in 4 sections. At the end of the test you will be given 10 minutes to transfer your answers to an answer sheet."
+            }
+
+        return IELTSListeningResponse(
+            sections=[IELTSListeningSection(**section) for section in data["sections"]],
+            total_questions=data["total_questions"],
+            total_duration=data["total_duration"],
+            topic=data["topic"],
+            difficulty=data["difficulty"],
+            instructions=data["instructions"]
+        )
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"IELTS Listening üretim hatası: {str(e)}")
 
 @app.get("/topics")
 async def get_listening_topics():
@@ -677,6 +1193,69 @@ async def analyze_listening(request: ListeningRequest):
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Analiz hatası: {str(e)}")
+
+async def elevenlabs_text_to_speech_func(text: str):
+    """
+    ElevenLabs API kullanarak metni sese çevirir
+    """
+    try:
+        url = "https://api.elevenlabs.io/v1/text-to-speech/pNInz6obpgDQGcFmaJgB"
+        headers = {
+            "Accept": "audio/mpeg",
+            "Content-Type": "application/json",
+            "xi-api-key": ELEVENLABS_API_KEY
+        }
+        data = {
+            "text": text,
+            "model_id": "eleven_monolingual_v1",
+            "voice_settings": {
+                "stability": 0.5,
+                "similarity_boost": 0.5
+            }
+        }
+        
+        response = requests.post(url, json=data, headers=headers)
+        if response.status_code == 200:
+            return response.content
+        else:
+            print(f"ElevenLabs API hatası: {response.status_code}")
+            return None
+    except Exception as e:
+        print(f"ElevenLabs TTS hatası: {e}")
+        return None
+
+@app.post("/elevenlabs-text-to-speech")
+async def elevenlabs_text_to_speech(request: dict):
+    """
+    ElevenLabs API kullanarak metni sese çevirir
+    """
+    try:
+        text = request.get("text", "")
+        voice = request.get("voice", "Adam")
+        accent = request.get("accent", "GB English")
+        
+        if not text:
+            raise HTTPException(status_code=400, detail="Metin boş olamaz")
+        
+        # ElevenLabs API key kontrolü
+        if ELEVENLABS_API_KEY == "your_elevenlabs_api_key_here":
+            print("ElevenLabs API key ayarlanmamış, fallback TTS kullanılıyor")
+            return await enhanced_text_to_speech(text)
+        
+        # ElevenLabs API ile ses oluştur
+        audio_data = await elevenlabs_text_to_speech_func(text)
+        
+        if audio_data:
+            return Response(content=audio_data, media_type="audio/mpeg")
+        else:
+            print("ElevenLabs TTS başarısız, fallback TTS kullanılıyor")
+            # Fallback TTS
+            return await enhanced_text_to_speech(text)
+            
+    except Exception as e:
+        print(f"ElevenLabs TTS hatası: {e}")
+        # Fallback TTS
+        return await enhanced_text_to_speech(request.get("text", ""))
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8003)

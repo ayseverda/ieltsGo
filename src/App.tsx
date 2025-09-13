@@ -1,10 +1,5 @@
-<<<<<<< HEAD
 import React, { useEffect, useState } from 'react';
 import { HashRouter as Router, Routes, Route } from 'react-router-dom';
-=======
-import React from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
->>>>>>> 091d9436fb64784688da7749c77dfa99f1b41a97
 import HomePage from './components/HomePage';
 import ReadingModule from './components/ReadingModule';
 import WritingModule from './components/WritingModule';
@@ -15,6 +10,7 @@ import LoginPage from './components/LoginPage';
 import RegisterPage from './components/RegisterPage';
 import Dashboard from './components/Dashboard';
 import ProtectedRoute from './components/ProtectedRoute';
+import GeneralTestPage from './GeneralTestPage';
 import './App.css';
 
 function App() {
@@ -33,7 +29,7 @@ function App() {
   const toggleTheme = () => setTheme(prev => (prev === 'light' ? 'dark' : 'light'));
 
   return (
-    <Router basename="/ayseverda/ieltsGo">
+    <Router>
       <div className="App">
         <Routes>
           <Route path="/" element={<HomePage />} />
@@ -65,7 +61,9 @@ function App() {
             </ProtectedRoute>
           } />
           <Route path="/speech-recording" element={<SpeechRecording />} />
+          <Route path="/general-test" element={<GeneralTestPage />} />
         </Routes>
+
 
         <button className="theme-toggle" onClick={toggleTheme} aria-label="Tema değiştir">
           {theme === 'dark' ? '🌙 dark' : '☀️ light'}
