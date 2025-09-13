@@ -6,6 +6,7 @@ import WritingModule from './components/WritingModule';
 import ListeningModule from './components/ListeningModule';
 import SpeakingModule from './components/SpeakingModule';
 import SpeechRecording from './components/SpeechRecording';
+import ConversationAnalysis from './components/ConversationAnalysis';
 import LoginPage from './components/LoginPage';
 import RegisterPage from './components/RegisterPage';
 import Dashboard from './components/Dashboard';
@@ -61,6 +62,11 @@ function App() {
             </ProtectedRoute>
           } />
           <Route path="/speech-recording" element={<SpeechRecording />} />
+          <Route path="/conversation-analysis" element={
+            <ProtectedRoute>
+              <ConversationAnalysis />
+            </ProtectedRoute>
+          } />
           <Route path="/general-test" element={<GeneralTestPage />} />
         </Routes>
 

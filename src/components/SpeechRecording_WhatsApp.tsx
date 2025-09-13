@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, Mic, Square, Send, RotateCcw, Loader2, Volume2 } from 'lucide-react';
+import { ArrowLeft, Mic, Square, Send, RotateCcw, Loader2 } from 'lucide-react';
 
 interface Topic {
   id: string;
@@ -67,6 +67,7 @@ const SpeechRecording: React.FC<SpeechRecordingProps> = () => {
   
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -79,60 +80,6 @@ const SpeechRecording: React.FC<SpeechRecordingProps> = () => {
         setError('Mikrofon erişimi mevcut değil. Lütfen tarayıcı ayarlarından mikrofon iznini kontrol edin.');
       });
   }, []);
-
-  // Web Audio API fallback function
-  const playWithWebAudio = async (audioBlob: Blob) => {
-    try {
-      console.log('Web Audio API ile çalma başlatılıyor...');
-      
-      // AudioContext oluştur
-      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-      
-      // Blob'u ArrayBuffer'a çevir
-      const arrayBuffer = await audioBlob.arrayBuffer();
-      console.log('ArrayBuffer oluşturuldu:', arrayBuffer.byteLength);
-      
-      // Audio buffer'a decode et
-      const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
-      console.log('Audio buffer decode edildi:', {
-        duration: audioBuffer.duration,
-        sampleRate: audioBuffer.sampleRate,
-        numberOfChannels: audioBuffer.numberOfChannels
-      });
-      
-      // Audio source oluştur
-      const source = audioContext.createBufferSource();
-      source.buffer = audioBuffer;
-      source.connect(audioContext.destination);
-      
-      // Bittiğinde cleanup
-      source.onended = () => {
-        console.log('Web Audio API çalma tamamlandı');
-        setIsPlayingAudio(false);
-        audioContext.close();
-      };
-      
-      // Çalmaya başla
-      console.log('Web Audio API ile çalma başlatılıyor...');
-      source.start(0);
-      console.log('Web Audio API çalma başlatıldı!');
-      
-    } catch (webAudioError) {
-      console.error('Web Audio API hatası:', webAudioError);
-      setIsPlayingAudio(false);
-      
-      // Son çare: Manual download
-      console.log('Manual download deneniyor...');
-      const link = document.createElement('a');
-      link.href = URL.createObjectURL(audioBlob);
-      link.download = 'tts_audio_manual.wav';
-      link.style.display = 'none';
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      console.log('Audio dosyası manuel olarak indirildi');
-    }
-  };
 
   // Auto scroll to bottom when new messages arrive
   useEffect(() => {
@@ -157,14 +104,12 @@ const SpeechRecording: React.FC<SpeechRecordingProps> = () => {
   };
 
   const resetSession = () => {
-    const newHistory: ConversationMessage[] = selectedTopic ? [{
+    setConversationHistory(selectedTopic ? [{
       id: Date.now().toString(),
-      type: 'ai' as const,
+      type: 'ai',
       text: selectedTopic.prompt,
       timestamp: new Date()
-    }] : [];
-    
-    setConversationHistory(newHistory);
+    }] : []);
     setError('');
   };
 
@@ -207,34 +152,6 @@ const SpeechRecording: React.FC<SpeechRecordingProps> = () => {
     if (mediaRecorderRef.current && isRecording) {
       mediaRecorderRef.current.stop();
       setIsRecording(false);
-    }
-  };
-
-  // Save message to backend for analysis
-  const saveMessageToBackend = async (message: string) => {
-    try {
-      const response = await fetch('http://localhost:8000/api/speaking/save-message', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          topicId: selectedTopic?.id || 'unknown',
-          topicTitle: selectedTopic?.title || 'Unknown Topic',
-          message: message
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error(`Backend kayıt hatası: ${response.status}`);
-      }
-
-      const data = await response.json();
-      console.log('Mesaj başarıyla kaydedildi:', data);
-      
-    } catch (error) {
-      console.error('Mesaj kaydedilemedi:', error);
-      throw error;
     }
   };
 
@@ -322,16 +239,10 @@ const SpeechRecording: React.FC<SpeechRecordingProps> = () => {
           text: aiText,
           timestamp: new Date()
         };
-
+        
         setConversationHistory([...updatedHistory, aiMessage]);
         
-        // Save user message to backend for analysis
-        try {
-          await saveMessageToBackend(userText);
-        } catch (saveError) {
-          console.warn('Mesaj kaydedilemedi:', saveError);
-          // Don't break the conversation flow, just log the error
-        }      };
+      };
       
       reader.readAsDataURL(audioBlob);
       
@@ -343,17 +254,11 @@ const SpeechRecording: React.FC<SpeechRecordingProps> = () => {
   };
 
   const playAIResponse = async (text: string) => {
-    if (!text || isPlayingAudio) {
-      console.log('TTS çalıştırılamıyor:', { text: !!text, isPlayingAudio });
-      return;
-    }
+    if (!text || isPlayingAudio) return;
     
-    console.log('TTS başlatılıyor...', { text, isPlayingAudio });
     setIsPlayingAudio(true);
     
     try {
-      console.log('TTS isteği gönderiliyor:', text);
-      
       const ttsResponse = await fetch('http://localhost:8000/api/speaking/text-to-speech', {
         method: 'POST',
         headers: {
@@ -365,147 +270,20 @@ const SpeechRecording: React.FC<SpeechRecordingProps> = () => {
         }),
       });
       
-      console.log('TTS yanıt durumu:', ttsResponse.status, ttsResponse.statusText);
-      console.log('TTS yanıt headers:', Object.fromEntries(ttsResponse.headers.entries()));
-      
       if (ttsResponse.ok) {
-        // Backend JSON response olarak base64 audio data dönüyor
-        const ttsData = await ttsResponse.json();
-        console.log('TTS JSON response alındı:', { 
-          hasAudioData: !!ttsData.audio_data,
-          dataLength: ttsData.audio_data?.length || 0 
-        });
+        const audioBlob = await ttsResponse.blob();
+        const audioUrl = URL.createObjectURL(audioBlob);
         
-        if (ttsData.audio_data) {
-          try {
-            // Base64 audio data'yı binary'ye çevir
-            const binaryString = atob(ttsData.audio_data);
-            const bytes = new Uint8Array(binaryString.length);
-            for (let i = 0; i < binaryString.length; i++) {
-              bytes[i] = binaryString.charCodeAt(i);
-            }
-            
-            // MP3 blob oluştur (backend MP3 dönüyor)
-            const audioBlob = new Blob([bytes], { type: 'audio/mpeg' });
-            console.log('Audio blob oluşturuldu:', { 
-              size: audioBlob.size, 
-              type: audioBlob.type 
-            });
-            
-            if (audioBlob.size > 0) {
-              const audioUrl = URL.createObjectURL(audioBlob);
-              console.log('Audio URL oluşturuldu:', audioUrl);
-              
-              // Browser codec desteğini kontrol et
-              const audio = new Audio();
-              const mp3Support = audio.canPlayType('audio/mpeg');
-              const wavSupport = audio.canPlayType('audio/wav');
-              
-              console.log('Browser audio format support:', {
-                mp3: mp3Support,
-                wav: wavSupport
-              });
-              
-              // Audio element oluştur
-              audio.preload = 'auto';
-              audio.volume = 1.0;
-              audio.src = audioUrl;
-              
-              console.log('Audio element oluşturuldu ve src atandı');
-              console.log('Audio properties:', {
-                src: audio.src,
-                volume: audio.volume,
-                muted: audio.muted,
-                paused: audio.paused
-              });
-              
-              // Event listeners ekle
-              audio.onloadstart = () => console.log('Audio yükleme başladı');
-              audio.oncanplay = () => console.log('Audio çalmaya hazır');
-              audio.onplay = () => console.log('Audio çalmaya başladı');
-              audio.onended = () => {
-                console.log('Audio tamamlandı');
-                setIsPlayingAudio(false);
-                URL.revokeObjectURL(audioUrl);
-              };
-              audio.onerror = (e) => {
-                console.error('Audio çalma hatası:', e);
-                setIsPlayingAudio(false);
-                URL.revokeObjectURL(audioUrl);
-                
-                // Fallback: Web Audio API ile dene
-                console.log('Web Audio API ile deneniyor...');
-                playWithWebAudio(audioBlob);
-              };
-              
-              try {
-                console.log('Audio play() çağrılıyor...');
-                await audio.play();
-                console.log('Audio play() başarılı!');
-              } catch (playError) {
-                console.error('Audio play() hatası:', playError);
-                setIsPlayingAudio(false);
-                URL.revokeObjectURL(audioUrl);
-                
-                // Fallback: Web Audio API
-                console.log('Fallback: Web Audio API kullanılıyor...');
-                playWithWebAudio(audioBlob);
-              }
-            } else {
-              console.error('Audio blob size 0');
-              setIsPlayingAudio(false);
-            }
-          } catch (base64Error) {
-            console.error('Base64 decode hatası:', base64Error);
-            setIsPlayingAudio(false);
-          }
-        } else {
-          console.error('Audio data bulunamadı');
-          setIsPlayingAudio(false);
+        if (audioRef.current) {
+          audioRef.current.src = audioUrl;
+          audioRef.current.play();
         }
-      } else {
-        const errorText = await ttsResponse.text();
-        console.error('TTS API hatası:', ttsResponse.status, errorText);
-        setIsPlayingAudio(false);
       }
     } catch (error) {
-      console.error('TTS bağlantı hatası:', error);
+      console.error('TTS error:', error);
       setIsPlayingAudio(false);
     }
   };
-
-  // Son AI mesajını bul ve seslendir
-  const playLastAIMessage = async () => {
-    const lastAiMessage = conversationHistory
-      .slice()
-      .reverse()
-      .find(msg => msg.type === 'ai');
-    
-    if (lastAiMessage) {
-      console.log('Son AI mesajı seslendirilecek:', lastAiMessage.text);
-      
-      // Audio context ile önce initialize et
-      try {
-        const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-        if (audioContext.state === 'suspended') {
-          await audioContext.resume();
-          console.log('AudioContext activated for playback');
-        }
-      } catch (err) {
-        console.warn('AudioContext uyarısı:', err);
-      }
-      
-      playAIResponse(lastAiMessage.text);
-    } else {
-      console.log('Seslendirilecek AI mesajı bulunamadı');
-    }
-  };
-
-  // Test için basit mesaj seslendirme
-  
-
-  // Debug: TTS dosyasını download et
-  
 
   // Topic selection screen
   if (!selectedTopic) {
@@ -553,134 +331,81 @@ const SpeechRecording: React.FC<SpeechRecordingProps> = () => {
     );
   }
 
-  // Centered chat interface - App themed style
+  // Full screen chat interface - WhatsApp style
   return (
-    <div className="App" style={{ 
-      minHeight: '100vh',
-      padding: '20px'
+    <div style={{ 
+      height: '100vh', 
+      display: 'flex', 
+      flexDirection: 'column',
+      backgroundColor: '#e5ddd5',
+      fontFamily: 'Arial, sans-serif'
     }}>
-      <div className="container">
-        <div style={{ 
-          width: '100%', 
-          maxWidth: window.innerWidth > 768 ? '45%' : '80%', 
-          margin: '0 auto',
-          height: 'calc(100vh - 40px)', 
-          display: 'flex', 
-          flexDirection: 'column',
-          backgroundColor: 'var(--card-bg)',
-          borderRadius: '15px',
-          boxShadow: 'var(--card-shadow)',
-          overflow: 'hidden'
-        }}>
-      {/* Navigation Bar - App themed */}
+      {/* Chat Header - WhatsApp green */}
       <div style={{
         padding: '15px 20px',
-        backgroundColor: 'var(--card-bg)',
-        borderBottom: '1px solid #e5e7eb',
-        display: 'flex',
-        alignItems: 'center',
-        gap: '15px'
-      }}>
-        <Link 
-          to="/speaking" 
-          className="btn"
-          style={{
-            padding: '8px 16px',
-            fontSize: '14px',
-            textDecoration: 'none',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px'
-          }}
-        >
-          <ArrowLeft size={16} />
-          Speaking Modülü
-        </Link>
-        <Link 
-          to="/dashboard" 
-          className="btn btn-secondary"
-          style={{
-            padding: '8px 16px',
-            fontSize: '14px',
-            textDecoration: 'none',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px'
-          }}
-        >
-          <ArrowLeft size={16} />
-          Ana Sayfa
-        </Link>
-      </div>
-
-      {/* Chat Header - App themed */}
-      <div style={{
-        padding: '15px 20px',
-        backgroundColor: 'var(--accent)',
-        background: 'linear-gradient(135deg, var(--accent) 0%, #764ba2 100%)',
+        backgroundColor: '#075e54',
         color: 'white',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
-        borderBottom: '1px solid #e5e7eb'
+        boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
+        zIndex: 10
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
           <button 
             onClick={backToTopics}
             style={{
-              background: 'rgba(255,255,255,0.2)',
+              background: 'none',
               border: 'none',
               color: 'white',
               cursor: 'pointer',
-              padding: '8px',
-              borderRadius: '8px',
-              transition: 'all 0.2s ease'
+              padding: '5px',
+              borderRadius: '4px'
             }}
-            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.3)'}
-            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.2)'}
+            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.1)'}
+            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
           >
-            <ArrowLeft size={20} />
+            <ArrowLeft size={24} />
           </button>
           <div style={{
-            width: '50px',
-            height: '50px',
+            width: '40px',
+            height: '40px',
             borderRadius: '50%',
             backgroundColor: 'rgba(255,255,255,0.2)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            fontSize: '24px'
+            fontSize: '20px'
           }}>
-            🤖
+            👩‍🏫
           </div>
           <div>
             <h3 style={{ margin: 0, fontSize: '18px' }}>AI Teacher</h3>
-            <p style={{ margin: 0, fontSize: '14px', opacity: 0.9 }}>
+            <p style={{ margin: 0, fontSize: '14px', opacity: 0.8 }}>
               {selectedTopic.title}
             </p>
           </div>
         </div>
         <button 
           onClick={resetSession}
-          className="btn"
           style={{
             background: 'rgba(255,255,255,0.2)',
             border: 'none',
             color: 'white',
+            borderRadius: '20px',
             padding: '8px 15px',
+            cursor: 'pointer',
             fontSize: '14px',
             display: 'flex',
             alignItems: 'center',
             gap: '5px'
           }}
+          onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.3)'}
+          onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.2)'}
         >
           <RotateCcw size={16} />
           Sıfırla
         </button>
-        
-       
-        
-      
       </div>
 
       {/* Messages Area */}
@@ -688,63 +413,11 @@ const SpeechRecording: React.FC<SpeechRecordingProps> = () => {
         flex: 1,
         overflowY: 'auto',
         padding: '20px',
-        backgroundColor: 'var(--bg)',
+        backgroundImage: `url("data:image/svg+xml,%3Csvg width='40' height='40' viewBox='0 0 40 40' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%23e5ddd5' fill-opacity='0.1'%3E%3Cpath d='M20 20c0-11.046-8.954-20-20-20v20h20z'/%3E%3C/g%3E%3C/svg%3E")`,
         display: 'flex',
         flexDirection: 'column',
-        gap: '10px',
-        position: 'relative'
+        gap: '10px'
       }}>
-        {/* Seslendir Butonu - Sağ üst köşe */}
-        {conversationHistory.some(msg => msg.type === 'ai') && (
-          <button
-            onClick={playLastAIMessage}
-            disabled={isPlayingAudio}
-            style={{
-              position: 'absolute',
-              top: '15px',
-              right: '15px',
-              width: '45px',
-              height: '45px',
-              borderRadius: '50%',
-              border: 'none',
-              backgroundColor: isPlayingAudio ? '#ff4757' : 'var(--accent)',
-              background: isPlayingAudio ? '#ff4757' : 'linear-gradient(135deg, var(--accent) 0%, #764ba2 100%)',
-              color: 'white',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              cursor: isPlayingAudio ? 'not-allowed' : 'pointer',
-              transition: 'all 0.2s ease',
-              boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
-              zIndex: 10,
-              opacity: isPlayingAudio ? 0.7 : 1
-            }}
-            onMouseEnter={(e) => {
-              if (!isPlayingAudio) {
-                e.currentTarget.style.transform = 'scale(1.1)';
-                e.currentTarget.style.boxShadow = '0 6px 20px rgba(0,0,0,0.3)';
-              }
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.transform = 'scale(1)';
-              e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.2)';
-            }}
-            title={isPlayingAudio ? 'Ses çalınıyor...' : 'Son AI mesajını seslendir'}
-          >
-            {isPlayingAudio ? (
-              <div style={{
-                width: '20px',
-                height: '20px',
-                border: '2px solid white',
-                borderTop: '2px solid transparent',
-                borderRadius: '50%',
-                animation: 'spin 1s linear infinite'
-              }} />
-            ) : (
-              <Volume2 size={20} />
-            )}
-          </button>
-        )}
         {conversationHistory.map((message, index) => (
           <div key={message.id} style={{
             display: 'flex',
@@ -762,39 +435,52 @@ const SpeechRecording: React.FC<SpeechRecordingProps> = () => {
               {/* Avatar for AI messages only */}
               {message.type === 'ai' && (
                 <div 
+                  onClick={() => playAIResponse(message.text)}
                   style={{
-                    width: '45px',
-                    height: '45px',
+                    width: '32px',
+                    height: '32px',
                     borderRadius: '50%',
-                    backgroundColor: 'var(--accent)',
-                    background: 'linear-gradient(135deg, var(--accent) 0%, #764ba2 100%)',
+                    backgroundColor: '#075e54',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    fontSize: '20px',
+                    fontSize: '16px',
+                    cursor: 'pointer',
                     flexShrink: 0,
                     color: 'white',
-                    boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
-                    border: '2px solid rgba(255,255,255,0.2)'
+                    transition: 'all 0.2s ease',
+                    position: 'relative',
+                    boxShadow: '0 2px 5px rgba(0,0,0,0.2)'
                   }}
+                  onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.1)'}
+                  onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+                  title="Sesli dinle"
                 >
-                  🤖
+                  👩‍🏫
+                  {isPlayingAudio && (
+                    <div style={{
+                      position: 'absolute',
+                      width: '40px',
+                      height: '40px',
+                      borderRadius: '50%',
+                      border: '2px solid #25d366',
+                      animation: 'soundWave 1.5s infinite'
+                    }} />
+                  )}
                 </div>
               )}
 
               {/* Message Bubble */}
               <div style={{
-                padding: '12px 16px',
+                padding: '10px 15px',
                 borderRadius: message.type === 'user' ? '18px 18px 4px 18px' : '18px 18px 18px 4px',
-                backgroundColor: message.type === 'user' ? 'var(--accent)' : 'var(--card-bg)',
-                background: message.type === 'user' ? 'linear-gradient(135deg, var(--accent) 0%, #764ba2 100%)' : 'var(--card-bg)',
-                color: message.type === 'user' ? 'white' : 'var(--text)',
-                boxShadow: 'var(--card-shadow)',
+                backgroundColor: message.type === 'user' ? '#dcf8c6' : 'white',
+                color: '#303030',
+                boxShadow: '0 1px 2px rgba(0,0,0,0.1)',
                 position: 'relative',
                 wordWrap: 'break-word',
                 maxWidth: '100%',
-                minWidth: '60px',
-                border: message.type === 'ai' ? '1px solid #e5e7eb' : 'none'
+                minWidth: '60px'
               }}>
                 <p style={{ 
                   margin: 0, 
@@ -830,27 +516,24 @@ const SpeechRecording: React.FC<SpeechRecordingProps> = () => {
               maxWidth: '75%'
             }}>
               <div style={{
-                width: '45px',
-                height: '45px',
+                width: '32px',
+                height: '32px',
                 borderRadius: '50%',
-                backgroundColor: 'var(--accent)',
-                background: 'linear-gradient(135deg, var(--accent) 0%, #764ba2 100%)',
+                backgroundColor: '#075e54',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                fontSize: '20px',
+                fontSize: '16px',
                 color: 'white',
-                boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
-                border: '2px solid rgba(255,255,255,0.2)'
+                boxShadow: '0 2px 5px rgba(0,0,0,0.2)'
               }}>
-                🤖
+                👩‍🏫
               </div>
               <div style={{
-                padding: '12px 16px',
+                padding: '10px 15px',
                 borderRadius: '18px 18px 18px 4px',
-                backgroundColor: 'var(--card-bg)',
-                border: '1px solid #e5e7eb',
-                boxShadow: 'var(--card-shadow)',
+                backgroundColor: 'white',
+                boxShadow: '0 1px 2px rgba(0,0,0,0.1)',
                 display: 'flex',
                 alignItems: 'center',
                 gap: '8px'
@@ -892,42 +575,41 @@ const SpeechRecording: React.FC<SpeechRecordingProps> = () => {
 
       {/* Message Input Area */}
       <div style={{
-        padding: '15px 20px',
-        backgroundColor: 'var(--card-bg)',
-        borderTop: '1px solid #e5e7eb',
+        padding: '10px 15px',
+        backgroundColor: '#f0f2f5',
+        borderTop: '1px solid #e9edef',
         display: 'flex',
         alignItems: 'center',
-        gap: '12px'
+        gap: '10px'
       }}>
         {/* Voice Message Button */}
         <button
           onClick={isRecording ? stopRecording : startRecording}
           disabled={isProcessing}
           style={{
-            width: '50px',
-            height: '50px',
+            width: '48px',
+            height: '48px',
             borderRadius: '50%',
             border: 'none',
-            backgroundColor: isRecording ? '#ff4757' : 'var(--accent)',
-            background: isRecording ? '#ff4757' : 'linear-gradient(135deg, var(--accent) 0%, #764ba2 100%)',
+            backgroundColor: isRecording ? '#ff4444' : '#25d366',
             color: 'white',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             cursor: isProcessing ? 'not-allowed' : 'pointer',
             transition: 'all 0.2s ease',
-            boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+            boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
             flexShrink: 0
           }}
           onMouseEnter={(e) => {
             if (!isProcessing) {
               e.currentTarget.style.transform = 'scale(1.05)';
-              e.currentTarget.style.boxShadow = '0 6px 20px rgba(0,0,0,0.25)';
+              e.currentTarget.style.boxShadow = '0 4px 15px rgba(0,0,0,0.2)';
             }
           }}
           onMouseLeave={(e) => {
             e.currentTarget.style.transform = 'scale(1)';
-            e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)';
+            e.currentTarget.style.boxShadow = '0 2px 10px rgba(0,0,0,0.1)';
           }}
         >
           {isRecording ? <Square size={22} /> : <Mic size={22} />}
@@ -936,14 +618,14 @@ const SpeechRecording: React.FC<SpeechRecordingProps> = () => {
         {/* Status Text Input */}
         <div style={{
           flex: 1,
-          backgroundColor: 'var(--bg)',
-          border: '1px solid #e5e7eb',
+          backgroundColor: 'white',
           borderRadius: '25px',
           padding: '12px 18px',
           display: 'flex',
           alignItems: 'center',
+          boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
           fontSize: '15px',
-          color: 'var(--muted-text)',
+          color: '#667781',
           minHeight: '24px'
         }}>
           {isRecording ? (
@@ -971,12 +653,12 @@ const SpeechRecording: React.FC<SpeechRecordingProps> = () => {
         <button
           disabled
           style={{
-            width: '50px',
-            height: '50px',
+            width: '48px',
+            height: '48px',
             borderRadius: '50%',
             border: 'none',
-            backgroundColor: '#e5e7eb',
-            color: '#9ca3af',
+            backgroundColor: '#e9edef',
+            color: '#8696a0',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -1008,6 +690,13 @@ const SpeechRecording: React.FC<SpeechRecordingProps> = () => {
           {error}
         </div>
       )}
+
+      {/* Hidden audio element */}
+      <audio
+        ref={audioRef}
+        onEnded={() => setIsPlayingAudio(false)}
+        style={{ display: 'none' }}
+      />
 
       <style>{`
         @keyframes messageSlideIn {
@@ -1047,8 +736,6 @@ const SpeechRecording: React.FC<SpeechRecordingProps> = () => {
           to { transform: rotate(360deg); }
         }
       `}</style>
-      </div>
-      </div>
     </div>
   );
 };

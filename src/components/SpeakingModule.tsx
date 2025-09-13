@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, Mic } from 'lucide-react';
+import { ArrowLeft, Mic, BarChart3 } from 'lucide-react';
 
 const SpeakingModule: React.FC = () => {
   return (
@@ -28,20 +28,17 @@ const SpeakingModule: React.FC = () => {
           </div>
 
           <div className="card">
-            <h3>🗣️ Telaffuz Analizi</h3>
-            <p>Konuşmanızın telaffuz ve akıcılığını analiz edin</p>
-            <button className="btn btn-secondary" disabled>
-              Analiz Et (Yakında)
-            </button>
+            <h3>� Konuşma Analizi</h3>
+            <p>Geçmiş konuşmalarınızın gramer, kelime dağarcığı ve cümle yapısı analizini görüntüleyin.</p>
+            <Link to="/conversation-analysis" className="btn btn-success" style={{ textDecoration: 'none' }}>
+              <BarChart3 style={{ marginRight: '8px' }} />
+              ANALİZ GÖRÜNTÜLE
+            </Link>
           </div>
 
-          <div className="card">
-            <h3>📈 Gelişim Takibi</h3>
-            <p>Konuşma becerilerinizdeki gelişimi takip edin</p>
-            <button className="btn btn-success" disabled>
-              Görüntüle (Yakında)
-            </button>
-          </div>
+          
+
+         
         </div>
       </div>
     </div>
