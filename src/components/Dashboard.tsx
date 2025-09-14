@@ -44,7 +44,7 @@ const Dashboard: React.FC = () => {
 
   const fetchUserStats = async () => {
     try {
-      // Şu an sadece auth sistemi var, puan sistemi sonra eklenecek
+      // Varsayılan değerler
       const defaultStats: UserStats = {
         listening: { totalTests: 0, averageScore: 0, bestScore: 0 },
         reading: { totalTests: 0, averageScore: 0, bestScore: 0 },
@@ -52,6 +52,33 @@ const Dashboard: React.FC = () => {
         speaking: { totalSessions: 0, averageScore: 0, bestScore: 0 },
         overall: { totalTests: 0, ieltsBandScore: 0, improvementRate: 0, streak: 0 }
       };
+
+      // Speaking verilerini API'den çek
+      try {
+        const speakingResponse = await fetch('http://localhost:8000/api/speaking/user-messages', {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token') || ''}`
+          }
+        });
+        
+        if (speakingResponse.ok) {
+          const speakingMessages = await speakingResponse.json();
+          
+          if (speakingMessages && speakingMessages.length > 0) {
+            const scores = speakingMessages.map((msg: any) => msg.analysis.overallScore);
+            const averageScore = scores.reduce((sum: number, score: number) => sum + score, 0) / scores.length;
+            const bestScore = Math.max(...scores);
+            
+            defaultStats.speaking = {
+              totalSessions: speakingMessages.length,
+              averageScore: averageScore,
+              bestScore: bestScore
+            };
+          }
+        }
+      } catch (speakingError) {
+        console.error('Speaking verileri yüklenirken hata:', speakingError);
+      }
       
       setUserStats(defaultStats);
       setIsLoading(false);

@@ -4,11 +4,13 @@ from fastapi.middleware.cors import CORSMiddleware
 import httpx
 import uvicorn
 from api.auth import router as auth_router
+from api.speaking import router as speaking_router
 
 app = FastAPI(title="IELTS Go API Gateway", version="1.0.0")
 
 # Include routers
 app.include_router(auth_router, prefix="/api", tags=["auth"])
+app.include_router(speaking_router, prefix="", tags=["speaking"])
 
 # CORS middleware
 # CORS middleware
@@ -25,7 +27,7 @@ MODULE_URLS = {
     "reading": "http://localhost:8001",
     "writing": "http://localhost:8002", 
     "listening": "http://localhost:8003",
-    "speaking": "http://localhost:8004"
+    "speaking": "http://localhost:8005"
 }
 
 # API endpoints
@@ -37,7 +39,7 @@ async def root():
             "reading": "http://localhost:8001",
             "writing": "http://localhost:8002",
             "listening": "http://localhost:8003", 
-            "speaking": "http://localhost:8004"
+            "speaking": "http://localhost:8005"
         }
     }
 

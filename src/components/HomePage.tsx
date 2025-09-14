@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { BookOpen, PenTool, Headphones, Mic } from 'lucide-react';
+import { BookOpen, PenTool, Headphones, Mic, Trophy } from 'lucide-react';
 import { auth } from '../services/auth';
 
 const HomePage: React.FC = () => {
@@ -90,6 +90,18 @@ const HomePage: React.FC = () => {
           </p>
           <Link to="/speaking" className="btn btn-warning">
             Speaking Modülüne Git
+          </Link>
+        </div>
+
+        <div className="card">
+          <Trophy className="icon" />
+          <h2>Genel Deneme</h2>
+          <p>
+            Tüm modülleri içeren AI destekli genel IELTS denemesi yapın ve 
+            puanınızı öğrenin. Gerçek sınav deneyimi yaşayın.
+          </p>
+          <Link to="/general-test" className="btn" style={{ background: "#FFD700", color: "#222" }}>
+            Genel Deneme Modülüne Git
           </Link>
         </div>
       </div>

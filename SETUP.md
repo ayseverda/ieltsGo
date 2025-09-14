@@ -9,6 +9,7 @@ Bu rehber, IELTS Go projesini GitHub'dan indirip çalıştırmanız için gerekl
 - **Git** - [İndir](https://git-scm.com/)
 - **MongoDB Community Server** - [İndir](https://www.mongodb.com/try/download/community)
 - **Internet bağlantısı** (API key'ler için)
+- (Opsiyonel) **MongoDB** (Local veya Atlas)
 
 ## 🔧 Adım Adım Kurulum
 
@@ -62,7 +63,7 @@ source venv/bin/activate
 pip install -r backend/requirements.txt
 ```
 
-### 4️⃣ API Key'leri Ayarla
+### 4️⃣ Ortam Değişkenlerini Ayarla
 
 #### .env Dosyası Oluştur
 
@@ -75,7 +76,7 @@ copy env.example .env
 cp env.example .env
 ```
 
-#### API Key'leri Al ve Ekle
+#### API Key'leri ve DB URI Ekle
 
 **Gemini API Key:**
 1. https://makersuite.google.com/app/apikey adresine git
@@ -91,6 +92,17 @@ cp env.example .env
 4. Profile → API Key'e git
 5. API key'ini kopyala
 6. `.env` dosyasında `ELEVENLABS_API_KEY=your_api_key_here` kısmını düzenle
+
+**MongoDB URI:**
+
+- Lokalde MongoDB kullanıyorsanız:
+  - `MONGODB_URI=mongodb://localhost:27017`
+  - `MONGODB_DB=ielts_go`
+- MongoDB Atlas kullanıyorsanız:
+  - `MONGODB_URI=mongodb+srv://<user>:<pass>@<cluster>/ielts_go?retryWrites=true&w=majority&appName=ieltsGo`
+  - `MONGODB_DB=ielts_go`
+
+Reading modülü MongoDB'ye bağlıysa testleri `reading_tests`, gönderimleri `reading_submissions` koleksiyonlarında saklar. DB yoksa JSON dosyasından okur.
 
 
 ### 5️⃣ Uygulamayı Başlat
