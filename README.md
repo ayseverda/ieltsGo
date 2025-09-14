@@ -4,13 +4,23 @@ Modern teknoloji ile IELTS sınavına hazırlan! Yapay zeka destekli, modüler y
 
 ## ✨ Özellikler
 
+### 🎓 **Tamamlanan Modüller**
+- ✅ **Listening Modülü**: AI destekli metin üretimi, ElevenLabs TTS, IELTS benzeri puanlama
+- ✅ **Reading Modülü**: AI metin analizi, çoklu soru tipleri, detaylı geri bildirim
+- ✅ **Writing Modülü**: AI essay değerlendirmesi, kriter bazlı puanlama, gelişim önerileri
+- ✅ **Speaking Modülü**: Konuşma pratiği, gerçek zamanlı analiz, session bazlı puanlama
 
+### 🔐 **Kullanıcı Sistemi**
+- ✅ **Kayıt/Giriş**: JWT token tabanlı authentication
+- ✅ **Dashboard**: Detaylı istatistikler ve progress tracking
+- ✅ **Puan Takibi**: MongoDB ile kullanıcı puanları saklama
+- ✅ **Session Yönetimi**: Speaking için session bazlı puanlama
 
-### 📚  Modüller (Geliştirilecek)
-- **Listening Modülü**: Metin dinleme soru çözme
-- **Reading Modülü**: Metin analizi ve soru çözme
-- **Writing Modülü**: Yazma becerileri ve AI geri bildirimi
-- **Speaking Modülü**: Konuşma pratiği ve değerlendirme
+### 🤖 **AI Entegrasyonu**
+- ✅ **Gemini AI**: Metin üretimi ve analiz
+- ✅ **ElevenLabs TTS**: Doğal ses sentezi
+- ✅ **Speech Recognition**: Konuşma-metin dönüşümü
+- ✅ **FFmpeg**: Audio format dönüşümü
 
 ## 🚀 Hızlı Başlangıç
 
@@ -38,20 +48,23 @@ source venv/bin/activate
 
 # Bağımlılıkları yükle
 pip install -r backend/requirements.txt
+pip install -r requirements.txt
 ```
 
-### 4️⃣ API Key'leri Ayarla
-`.env` dosyası oluştur:
-```env
-GEMINI_API_KEY=your_gemini_api_key_here
-ELEVENLABS_API_KEY=your_elevenlabs_api_key_here
+### 4️⃣ MongoDB Kurulumu
+```bash
+# MongoDB Community Server indir ve kur
+# https://www.mongodb.com/try/download/community
+
+# MongoDB Compass ile bağlantıyı test et
+# Connection String: mongodb://127.0.0.1:27017
 ```
 
-#### 🔑 API Key'leri Nasıl Alınır?
+### 5️⃣ API Key'leri Ayarla
 
 **Gemini API Key:**
-1. https://makersuite.google.com/app/apikey adresine git
-2. "Create API Key" butonuna tıkla
+1. https://aistudio.google.com/ adresine git
+2. "Get API Key" butonuna tıkla
 3. API key'ini kopyala
 
 **ElevenLabs API Key:**
@@ -59,19 +72,39 @@ ELEVENLABS_API_KEY=your_elevenlabs_api_key_here
 2. Ücretsiz hesap oluştur
 3. Profile → API Key'den key'ini al
 
-### 5️⃣ Uygulamayı Başlat
-```bash
-# Windows:
-.\start_all.bat
+**API Key'leri Modüllere Ekle:**
+- `modules/listening.py` → GEMINI_API_KEY ve ELEVENLABS_API_KEY
+- `modules/speaking.py` → GEMINI_API_KEY ve ELEVENLABS_API_KEY
+- `modules/writing.py` → GEMINI_API_KEY
+- `modules/reading.py` → GEMINI_API_KEY
 
-# macOS/Linux:
-chmod +x start_all.sh
-./start_all.sh
+### 6️⃣ FFmpeg Kurulumu (Speaking için)
+```bash
+# Windows: FFmpeg indir ve C:\ffmpeg\bin'e çıkar
+# PATH'e ekle: $env:PATH += ";C:\ffmpeg\bin"
+
+# Test: ffmpeg -version
 ```
 
-### 6️⃣ Kullanmaya Başla!
+### 7️⃣ Uygulamayı Başlat
+```bash
+# Tüm servisleri başlat
+npm start
+
+# Ayrı terminal'de backend'i başlat
+cd backend && python main.py
+
+# Ayrı terminal'de modülleri başlat
+cd modules && python listening.py
+cd modules && python writing.py  
+cd modules && python reading.py
+cd modules && python speaking.py
+```
+
+### 8️⃣ Kullanmaya Başla!
 - **Frontend**: http://localhost:3000
-- **Listening Modülü**: http://localhost:8003/docs
+- **API Gateway**: http://localhost:8000
+- **Dashboard**: Kullanıcı kayıt/giriş yap
 
 ## 📁 Proje Yapısı
 
@@ -80,66 +113,72 @@ ieltsGo/
 ├── src/                    # React frontend
 │   ├── components/         # React bileşenleri
 │   │   ├── HomePage.tsx   # Ana sayfa
-│   │   ├── ListeningModule.tsx # Listening modülü (tamamlandı)
-│   │   ├── ReadingModule.tsx   # Reading modülü (placeholder)
-│   │   ├── WritingModule.tsx   # Writing modülü (placeholder)
-│   │   └── SpeakingModule.tsx  # Speaking modülü (placeholder)
+│   │   ├── Dashboard.tsx  # Kullanıcı dashboard'u
+│   │   ├── ListeningModule.tsx # Listening modülü ✅
+│   │   ├── ReadingModule.tsx   # Reading modülü ✅
+│   │   ├── WritingModule.tsx   # Writing modülü ✅
+│   │   └── SpeechRecording.tsx # Speaking modülü ✅
 │   ├── App.tsx            # Ana uygulama
 │   ├── App.css            # Stiller
 │   └── index.tsx          # Giriş noktası
 ├── backend/               # Ana API Gateway
 │   ├── main.py           # FastAPI ana uygulama
+│   ├── api/              # API endpoints
+│   │   ├── auth.py       # Authentication ✅
+│   │   ├── scores.py     # Puan yönetimi ✅
+│   │   └── speaking.py   # Speaking API ✅
 │   └── requirements.txt  # Python bağımlılıkları
 ├── modules/              # Modül backend'leri
-│   ├── listening.py      # Listening modülü (tamamlandı)
-│   ├── reading.py        # Reading modülü (placeholder)
-│   ├── writing.py        # Writing modülü (placeholder)
-│   ├── speaking.py       # Speaking modülü (placeholder)
+│   ├── listening.py      # Listening modülü ✅
+│   ├── reading.py        # Reading modülü ✅
+│   ├── writing.py        # Writing modülü ✅
+│   ├── speaking.py       # Speaking modülü ✅
 │   └── run_all_modules.py # Tüm modülleri başlat
-├── public/               # Statik dosyalar
-├── start_all.bat         # Tüm servisleri başlat
-├── start_modules.bat     # Sadece modülleri başlat
-├── .env                  # API key'leri (oluşturulacak)
-└── .gitignore           # Git ignore dosyası
+├── requirements.txt      # Ana Python bağımlılıkları
+├── .gitignore           # Git ignore dosyası
+└── README.md           # Bu dosya
 ```
 
-## 🎧 Listening Modülü Kullanımı
+## 🎧 Modül Kullanımı
 
-### 1. Ayarları Yap
-- **Konu**: Education, Work, Travel, Health, Technology, Environment
-- **Zorluk**: Başlangıç, Orta, İleri
-- **Aksan**: İngiliz, Amerikan, Avustralya
+### 🎧 Listening Modülü
+1. **Ayarları Yap**: Konu, zorluk, aksan seç
+2. **Dinle**: AI üretilen metni dinle
+3. **Cevapla**: 10 IELTS benzeri soru
+4. **Sonuç**: Detaylı analiz ve band score
 
-### 2. Listening Oluştur
-- "🎧 Yeni Listening Oluştur" butonuna tıkla
-- AI 10-15 saniyede içerik üretir
+### 📖 Reading Modülü  
+1. **Metin Seç**: AI üretilen reading passage
+2. **Oku ve Cevapla**: Çoklu soru tipleri
+3. **Analiz**: Detaylı geri bildirim
 
-### 3. Dinle ve Cevapla
-- "Dinle" butonuna tıkla (metin başta gizli)
-- İstersen "Göster" butonuyla metni görüntüle
-- Soruları cevapla (çoktan seçmeli, boşluk doldurma, doğru/yanlış)
+### ✍️ Writing Modülü
+1. **Task Seç**: Academic/General, Task 1/2
+2. **Yaz**: Essay/letter yaz
+3. **Değerlendirme**: AI kriter bazlı analiz
 
-### 4. Sonuçları Gör
-- "📊 Cevapları Kontrol Et" butonuna tıkla
-- Detaylı analiz ve puanlama
+### 🎤 Speaking Modülü
+1. **Konu Seç**: Çeşitli konular
+2. **Konuş**: Mikrofonla konuş
+3. **Analiz**: Gerçek zamanlı değerlendirme
+4. **Session**: Session bazlı puanlama
 
 ## 🌐 Servis URL'leri
 
 - **Frontend**: http://localhost:3000
 - **API Gateway**: http://localhost:8000
-- **Reading Modülü**: http://localhost:8001
-- **Writing Modülü**: http://localhost:8002
-- **Listening Modülü**: http://localhost:8003
+- **Listening Modülü**: http://localhost:8001
+- **Writing Modülü**: http://localhost:8002  
+- **Reading Modülü**: http://localhost:8003
 - **Speaking Modülü**: http://localhost:8004
 
 ## 📚 API Dokümantasyonu
 
 Her modül için Swagger UI mevcuttur:
-- Reading: http://localhost:8001/docs
+- Listening: http://localhost:8001/docs
 - Writing: http://localhost:8002/docs
-- Listening: http://localhost:8003/docs
+- Reading: http://localhost:8003/docs
 - Speaking: http://localhost:8004/docs
-
 
 ### Health Check
 ```bash
@@ -154,36 +193,66 @@ curl http://localhost:8004/health
 ### Port Zaten Kullanımda
 ```bash
 # Windows:
-netstat -ano | findstr :8003
+netstat -ano | findstr :8001
 taskkill /PID [PID_NUMARASI] /F
 
 # macOS/Linux:
-lsof -ti:8003 | xargs kill -9
+lsof -ti:8001 | xargs kill -9
 ```
 
 ### API Key Hatası
-- `.env` dosyasının proje kök dizininde olduğundan emin ol
-- API key'lerin doğru olduğunu kontrol et
+- API key'lerin modüllerde doğru yerde olduğunu kontrol et
+- Gemini API quota limitini kontrol et
 - ElevenLabs ücretsiz plan limitini kontrol et
+
+### FFmpeg Hatası (Speaking)
+- FFmpeg'in PATH'de olduğunu kontrol et: `ffmpeg -version`
+- C:\ffmpeg\bin klasörünün var olduğunu kontrol et
+
+### MongoDB Bağlantı Hatası
+- MongoDB'nin çalıştığını kontrol et
+- Connection string: `mongodb://127.0.0.1:27017`
 
 ### Ses Çalışmıyor
 - ElevenLabs API key'inin doğru olduğundan emin ol
 - Internet bağlantını kontrol et
-- Fallback olarak Windows TTS kullanılır
+- Mikrofon izinlerini kontrol et
 
-## 📋 Görev Dağılımı
+## 🎯 Proje Durumu
 
+### ✅ **Tamamlanan Özellikler**
+- [x] Tüm modüller (Listening, Reading, Writing, Speaking)
+- [x] User authentication & registration
+- [x] MongoDB entegrasyonu
+- [x] Puan takip sistemi
+- [x] Dashboard istatistikleri
+- [x] Session bazlı Speaking puanlama
+- [x] FFmpeg entegrasyonu
+- [x] Authorization sistemi
+- [x] AI entegrasyonları
 
-## 🎯 Sonraki Adımlar
-
-- [ ] Reading modülü geliştirme
-- [ ] Writing modülü geliştirme  
-- [ ] Speaking modülü geliştirme
-- [ ] Veritabanı entegrasyonu
-- [ ] Kullanıcı sistemi
-- [ ] Progress tracking
+### 🔄 **Geliştirilebilir Özellikler**
 - [ ] Mobile responsive design
+- [ ] Offline mode
+- [ ] Progress analytics
+- [ ] Social features
+- [ ] Advanced reporting
+- [ ] Multi-language support
+
+## 🤝 Katkıda Bulunma
+
+1. Fork yap
+2. Feature branch oluştur (`git checkout -b feature/amazing-feature`)
+3. Commit yap (`git commit -m 'Add amazing feature'`)
+4. Push yap (`git push origin feature/amazing-feature`)
+5. Pull Request oluştur
+
+## 📄 Lisans
+
+Bu proje MIT lisansı altında lisanslanmıştır.
 
 ---
 
 **🎉 Başarılar! IELTS sınavında başarılar dileriz!**
+
+**Proje GitHub'da**: https://github.com/ayseverda/ieltsGo
