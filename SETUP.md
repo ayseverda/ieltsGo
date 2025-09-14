@@ -7,6 +7,7 @@ Bu rehber, IELTS Go projesini GitHub'dan indirip çalıştırmanız için gerekl
 - **Node.js** (v16 veya üzeri) - [İndir](https://nodejs.org/)
 - **Python** (v3.8 veya üzeri) - [İndir](https://python.org/)
 - **Git** - [İndir](https://git-scm.com/)
+- **MongoDB Community Server** - [İndir](https://www.mongodb.com/try/download/community)
 - **Internet bağlantısı** (API key'ler için)
 
 ## 🔧 Adım Adım Kurulum
@@ -21,14 +22,30 @@ git clone https://github.com/ayseverda/ieltsGo.git
 cd ieltsGo
 ```
 
-### 2️⃣ Frontend Kurulumu
+### 2️⃣ MongoDB Kurulumu
+
+```bash
+# MongoDB Community Server'ı indir ve kur
+# https://www.mongodb.com/try/download/community
+
+# Kurulum sonrası MongoDB servisini başlat
+# Windows: Services.msc'den MongoDB servisini başlat
+# macOS/Linux: brew services start mongodb-community
+```
+
+**MongoDB Compass ile Bağlantı:**
+```
+mongodb://127.0.0.1:27017
+```
+
+### 3️⃣ Frontend Kurulumu
 
 ```bash
 # Node.js paketlerini yükle
 npm install
 ```
 
-### 3️⃣ Backend Kurulumu
+### 4️⃣ Backend Kurulumu
 
 ```bash
 # Python virtual environment oluştur
