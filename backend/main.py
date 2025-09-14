@@ -4,12 +4,14 @@ from fastapi.middleware.cors import CORSMiddleware
 import httpx
 import uvicorn
 from api.auth import router as auth_router
+from api.scores import router as scores_router
 from api.speaking import router as speaking_router
 
 app = FastAPI(title="IELTS Go API Gateway", version="1.0.0")
 
 # Include routers
 app.include_router(auth_router, prefix="/api", tags=["auth"])
+app.include_router(scores_router, prefix="/api", tags=["scores"])
 app.include_router(speaking_router, prefix="", tags=["speaking"])
 
 # CORS middleware

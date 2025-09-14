@@ -120,6 +120,46 @@ const ReadingModule: React.FC = () => {
     setAnswers(prev => ({ ...prev, [qid]: value }));
   };
 
+  const saveScoreToDatabase = async (scoreData: any) => {
+    try {
+      console.log('💾 Reading puan kaydetme başlatılıyor...', scoreData);
+      
+      const token = localStorage.getItem('token');
+      console.log('🔑 Token kontrolü:', token ? 'Token var' : 'Token yok');
+      
+      if (!token) {
+        console.log('❌ Kullanıcı giriş yapmamış, puan kaydedilmiyor');
+        return;
+      }
+
+      console.log('📤 Backend\'e gönderiliyor:', {
+        url: 'http://localhost:8000/api/save-score',
+        data: scoreData
+      });
+
+      const response = await fetch('http://localhost:8000/api/save-score', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(scoreData),
+      });
+
+      console.log('📥 Backend yanıtı:', response.status, response.statusText);
+
+      if (response.ok) {
+        const result = await response.json();
+        console.log('✅ Reading puanı başarıyla kaydedildi:', result);
+      } else {
+        const errorText = await response.text();
+        console.error('❌ Reading puan kaydetme hatası:', errorText);
+      }
+    } catch (error) {
+      console.error('❌ Reading puan kaydetme hatası:', error);
+    }
+  };
+
   const submit = async () => {
     if (!test) return;
     setSubmitting(true);
@@ -131,6 +171,25 @@ const ReadingModule: React.FC = () => {
       });
       const data = await res.json();
       setResult(data);
+
+      // Puanı veritabanına kaydet
+      await saveScoreToDatabase({
+        module: 'reading',
+        band_score: data.band_estimate || 0,
+        raw_score: data.scaled?.correct || 0,
+        total_questions: data.scaled?.total || data.raw?.total || 0,
+        topic: test.source || 'Reading Test',
+        difficulty: mode === 'academic' ? 'advanced' : 'intermediate',
+        accent: null, // Reading'de accent yok
+        detailed_results: {
+          raw_score: data.raw || {},
+          scaled_score: data.scaled || {},
+          feedback: data.feedback || {},
+          test_id: test.id,
+          part: part
+        }
+      });
+
       // persist feedback history
       const entry = {
         id: `${Date.now()}`,

@@ -46,11 +46,13 @@ const ListeningModule: React.FC = () => {
   const [userAnswers, setUserAnswers] = useState<{ [key: number]: number | string | boolean }>({});
   const [showResults, setShowResults] = useState(false);
   const [score, setScore] = useState(0);
+  const [ieltsBandScore, setIeltsBandScore] = useState(0);
+  const [rawScore, setRawScore] = useState(0);
+  const [totalQuestions, setTotalQuestions] = useState(0);
+  const [feedback, setFeedback] = useState('');
+  const [wrongQuestions, setWrongQuestions] = useState<any[]>([]);
   const [showTranscript, setShowTranscript] = useState(false);
-  const [currentSection, setCurrentSection] = useState(0);
   const [testStarted, setTestStarted] = useState(false);
-  const [timeLeft, setTimeLeft] = useState(0);
-  const [isPaused, setIsPaused] = useState(false);
 
   const topics = [
     'Education', 'Work', 'Travel', 'Health', 'Technology', 'Environment'
@@ -63,15 +65,17 @@ const ListeningModule: React.FC = () => {
   ];
 
   const accents = [
-    { value: 'british', label: '🇬🇧 İngiliz (Adam - Doğal)' },
-    { value: 'american', label: '🇺🇸 Amerikan (Bella - Doğal)' },
-    { value: 'australian', label: '🇦🇺 Avustralya (Arnold - Doğal)' }
+    { value: 'british', label: '🇬🇧 İngiliz (Speaker 1: Adam, Speaker 2: Bella)' },
+    { value: 'american', label: '🇺🇸 Amerikan (Speaker 1: Arnold, Speaker 2: Bella)' },
+    { value: 'australian', label: '🇦🇺 Avustralya (Speaker 1: Adam, Speaker 2: Bella)' },
+    { value: 'canadian', label: '🇨🇦 Kanada (Speaker 1: Arnold, Speaker 2: Bella)' },
+    { value: 'irish', label: '🇮🇪 İrlanda (Speaker 1: Adam, Speaker 2: Bella)' }
   ];
 
   const generateListening = async () => {
     setIsGenerating(true);
     try {
-      const response = await fetch('http://localhost:8003/generate-ielts-listening', {
+      const response = await fetch('http://localhost:8003/generate-ielts-listening-new', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -79,7 +83,8 @@ const ListeningModule: React.FC = () => {
         body: JSON.stringify({
           topic: selectedTopic,
           difficulty: selectedDifficulty,
-          accent: selectedAccent
+          accent: selectedAccent,
+          section_type: 'section_1' // Tek bölüm için
         }),
       });
 
@@ -89,9 +94,7 @@ const ListeningModule: React.FC = () => {
         setUserAnswers({});
         setShowResults(false);
         setShowTranscript(false);
-        setCurrentSection(0);
         setTestStarted(false);
-        setTimeLeft(data.total_duration * 60); // dakikayı saniyeye çevir
       } else {
         alert('Listening içeriği oluşturulamadı!');
       }
@@ -128,18 +131,40 @@ const ListeningModule: React.FC = () => {
 
     setIsGeneratingAudio(true);
     try {
-      // Önce ElevenLabs TTS'i dene (en doğal ses)
-      let response = await fetch('http://localhost:8003/elevenlabs-tts', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          text: text,
-          accent: selectedAccent,
-          speed: 1.0
-        }),
-      });
+      // İki kişi konuşması olup olmadığını kontrol et
+      const isDialogue = text.toLowerCase().includes('speaker') || 
+                        text.toLowerCase().includes('person') ||
+                        text.includes('A:') || text.includes('B:') ||
+                        (text.split('\n').length > 3 && text.includes(':'));
+
+      let response;
+      
+      if (isDialogue) {
+        // İki kişi konuşması için dialogue TTS kullan
+        response = await fetch('http://localhost:8003/dialogue-tts', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            text: text,
+            accent: selectedAccent
+          }),
+        });
+      } else {
+        // Tek kişi için normal TTS
+        response = await fetch('http://localhost:8003/elevenlabs-tts', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            text: text,
+            accent: selectedAccent,
+            speed: 1.0
+          }),
+        });
+      }
 
       if (response.ok) {
         const data: TTSResponse = await response.json();
@@ -207,88 +232,170 @@ const ListeningModule: React.FC = () => {
     }));
   };
 
-  // Timer effect
-  useEffect(() => {
-    let interval: NodeJS.Timeout;
-    
-    if (testStarted && !isPaused && timeLeft > 0) {
-      interval = setInterval(() => {
-        setTimeLeft(prev => {
-          if (prev <= 1) {
-            // Süre bitti
-            setTestStarted(false);
-            checkAnswers();
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
-    }
-
-    return () => clearInterval(interval);
-  }, [testStarted, isPaused, timeLeft]);
+  // Timer effect kaldırıldı - kullanıcı kontrolü
 
   const startTest = () => {
+    // Test bitirildiyse yeni test başlatma
+    if (showResults) {
+      return;
+    }
     setTestStarted(true);
-    setIsPaused(false);
+    setShowTranscript(false);
   };
 
-  const pauseTest = () => {
-    setIsPaused(!isPaused);
-  };
+  const saveScoreToDatabase = async (scoreData: any) => {
+    try {
+      console.log('💾 Puan kaydetme başlatılıyor...', scoreData);
+      
+      const token = localStorage.getItem('token');
+      console.log('🔑 Token kontrolü:', token ? 'Token var' : 'Token yok');
+      
+      if (!token) {
+        console.log('❌ Kullanıcı giriş yapmamış, puan kaydedilmiyor');
+        return;
+      }
 
-  const formatTime = (seconds: number) => {
-    const minutes = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${minutes}:${secs.toString().padStart(2, '0')}`;
-  };
+      console.log('📤 Backend\'e gönderiliyor:', {
+        url: 'http://localhost:8000/api/save-score',
+        data: scoreData
+      });
 
-  const nextSection = () => {
-    if (listeningContent && currentSection < listeningContent.sections.length - 1) {
-      setCurrentSection(currentSection + 1);
+      const response = await fetch('http://localhost:8000/api/save-score', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(scoreData),
+      });
+
+      console.log('📥 Backend yanıtı:', response.status, response.statusText);
+
+      if (response.ok) {
+        const result = await response.json();
+        console.log('✅ Puan başarıyla kaydedildi:', result);
+      } else {
+        const errorText = await response.text();
+        console.error('❌ Puan kaydetme hatası:', errorText);
+      }
+    } catch (error) {
+      console.error('❌ Puan kaydetme hatası:', error);
     }
   };
 
-  const prevSection = () => {
-    if (currentSection > 0) {
-      setCurrentSection(currentSection - 1);
-    }
-  };
-
-  const checkAnswers = () => {
+  const checkAnswers = async () => {
     if (!listeningContent) return;
 
-    let correctCount = 0;
-    let totalQuestions = 0;
+    try {
+      // Tüm soruları ve cevapları topla
+      const allQuestions: any[] = [];
+      const allUserAnswers: string[] = [];
 
-    listeningContent.sections.forEach(section => {
-      section.questions.forEach(question => {
-        totalQuestions++;
-        const userAnswer = userAnswers[question.id];
-        const correctAnswer = question.correct_answer;
-        
-        // Farklı soru tiplerini kontrol et
-        if (question.type === 'fill_in_blank' || question.type === 'form_completion' || 
-            question.type === 'note_completion' || question.type === 'sentence_completion') {
-          // Boşluk doldurma için case-insensitive karşılaştırma
-          if (typeof userAnswer === 'string' && typeof correctAnswer === 'string') {
-            if (userAnswer.toLowerCase().trim() === correctAnswer.toLowerCase().trim()) {
+      listeningContent.sections.forEach(section => {
+        section.questions.forEach(question => {
+          allQuestions.push(question);
+          const userAnswer = userAnswers[question.id];
+          allUserAnswers.push(userAnswer ? String(userAnswer) : "");
+        });
+      });
+
+      // Backend'e puanlama isteği gönder
+      const response = await fetch('http://localhost:8003/evaluate-ielts-listening', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          audio_file_path: '', // Bu endpoint'te kullanılmıyor
+          questions: allQuestions,
+          user_answers: allUserAnswers,
+        }),
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        setScore(result.score);
+        setIeltsBandScore(result.ielts_band_score);
+        setRawScore(result.raw_score);
+        setTotalQuestions(result.total_questions);
+        setFeedback(result.feedback);
+        setWrongQuestions(result.detailed_analysis.wrong_questions || []);
+        setShowResults(true);
+        setTestStarted(false);
+
+        // Puanı veritabanına kaydet
+        await saveScoreToDatabase({
+          module: 'listening',
+          band_score: result.ielts_band_score,
+          raw_score: result.raw_score,
+          total_questions: result.total_questions,
+          topic: selectedTopic,
+          difficulty: selectedDifficulty,
+          accent: selectedAccent,
+          detailed_results: {
+            feedback: result.feedback,
+            wrong_questions: result.detailed_analysis.wrong_questions || []
+          }
+        });
+      } else {
+        throw new Error('Puanlama hatası');
+      }
+    } catch (error) {
+      console.error('Puanlama hatası:', error);
+      // Fallback - local puanlama
+      let correctCount = 0;
+      let totalQuestions = 0;
+
+      listeningContent.sections.forEach(section => {
+        section.questions.forEach(question => {
+          totalQuestions++;
+          const userAnswer = userAnswers[question.id];
+          const correctAnswer = question.correct_answer;
+          
+          // Farklı soru tiplerini kontrol et
+          if (question.type === 'fill_in_blank' || question.type === 'form_completion' || 
+              question.type === 'note_completion' || question.type === 'sentence_completion') {
+            // Boşluk doldurma için case-insensitive karşılaştırma
+            if (typeof userAnswer === 'string' && typeof correctAnswer === 'string') {
+              if (userAnswer.toLowerCase().trim() === correctAnswer.toLowerCase().trim()) {
+                correctCount++;
+              }
+            }
+          } else {
+            // Multiple choice, true/false, matching için normal karşılaştırma
+            if (userAnswer === correctAnswer) {
               correctCount++;
             }
           }
-        } else {
-          // Multiple choice, true/false, matching için normal karşılaştırma
-          if (userAnswer === correctAnswer) {
-            correctCount++;
-          }
+        });
+      });
+
+      const calculatedScore = Math.round((correctCount / totalQuestions) * 100);
+      const fallbackBandScore = Math.max(1.0, Math.min(9.0, (correctCount / totalQuestions) * 9));
+      
+      setScore(calculatedScore);
+      setIeltsBandScore(fallbackBandScore);
+      setRawScore(correctCount);
+      setTotalQuestions(totalQuestions);
+      setFeedback('Puanlama servisi geçici olarak kullanılamıyor. Tahmini puan gösteriliyor.');
+      setShowResults(true);
+      setTestStarted(false);
+
+      // Fallback puanını da kaydet
+      await saveScoreToDatabase({
+        module: 'listening',
+        band_score: fallbackBandScore,
+        raw_score: correctCount,
+        total_questions: totalQuestions,
+        topic: selectedTopic,
+        difficulty: selectedDifficulty,
+        accent: selectedAccent,
+        detailed_results: {
+          feedback: 'Puanlama servisi geçici olarak kullanılamıyor. Tahmini puan gösteriliyor.',
+          wrong_questions: []
         }
       });
-    });
-
-    const calculatedScore = Math.round((correctCount / totalQuestions) * 100);
-    setScore(calculatedScore);
-    setShowResults(true);
-    setTestStarted(false);
+    }
   };
 
   return (
@@ -362,33 +469,29 @@ const ListeningModule: React.FC = () => {
         {listeningContent && !testStarted && (
           <div className="card mb-4">
             <h3>📝 IELTS Listening Test - {listeningContent.topic}</h3>
-            <p><strong>Toplam Süre:</strong> {listeningContent.total_duration} dakika</p>
             <p><strong>Toplam Soru:</strong> {listeningContent.total_questions} soru</p>
-            <p><strong>Bölüm Sayısı:</strong> {listeningContent.sections.length} bölüm</p>
             
             <div className="ielts-instructions">
-              <h4>📋 Sınav Talimatları:</h4>
-              <p>{listeningContent.instructions}</p>
-            </div>
-
-            <div className="sections-overview">
-              <h4>📚 Bölümler:</h4>
-              {listeningContent.sections.map((section, index) => (
-                <div key={section.id} className="section-preview">
-                  <h5>Bölüm {section.id}: {section.title}</h5>
-                  <p>{section.description}</p>
-                  <p><strong>Soru Sayısı:</strong> {section.questions.length} | <strong>Süre:</strong> {section.duration} dakika</p>
-                </div>
-              ))}
+              <h4>📋 Talimatlar:</h4>
+              <p>1. "Başla" butonuna tıklayın</p>
+              <p>2. Ses kaydını dinleyin (metin başta gizli)</p>
+              <p>3. 10 soruyu cevaplayın</p>
+              <p>4. İstediğiniz zaman durabilir veya bitirebilirsiniz</p>
             </div>
 
             <div className="text-center mt-4">
               <button 
                 onClick={startTest}
                 className="btn btn-primary"
-                style={{ fontSize: '1.2rem', padding: '15px 30px' }}
+                style={{ 
+                  fontSize: '1.2rem', 
+                  padding: '15px 30px',
+                  opacity: showResults ? 0.5 : 1,
+                  cursor: showResults ? 'not-allowed' : 'pointer'
+                }}
+                disabled={showResults}
               >
-                🎧 Sınavı Başlat
+                🎧 Başla
               </button>
             </div>
           </div>
@@ -400,46 +503,22 @@ const ListeningModule: React.FC = () => {
             {/* Sınav Header */}
             <div className="exam-header">
               <div className="exam-info">
-                <h3>🎧 IELTS Listening Test</h3>
-                <p>Bölüm {currentSection + 1} / {listeningContent.sections.length}</p>
-              </div>
-              
-              <div className="exam-controls">
-                <div className="timer-display">
-                  <Clock className="icon" />
-                  <span className="timer-text">{formatTime(timeLeft)}</span>
-                </div>
-                
-                <div className="control-buttons">
-                  <button 
-                    className="btn btn-secondary"
-                    onClick={pauseTest}
-                  >
-                    {isPaused ? <Play className="icon" /> : <Pause className="icon" />}
-                    {isPaused ? 'Devam Et' : 'Duraklat'}
-                  </button>
-                  
-                  <button 
-                    className="btn btn-danger"
-                    onClick={checkAnswers}
-                  >
-                    Sınavı Bitir
-                  </button>
-                </div>
+                <h3>🎧 IELTS Listening Test - {listeningContent.topic}</h3>
+                <p>10 soru | İstediğiniz zaman durabilir veya bitirebilirsiniz</p>
               </div>
             </div>
 
             {/* Mevcut Bölüm */}
-            {listeningContent.sections[currentSection] && (
+            {listeningContent.sections[0] && (
               <div className="current-section">
-                <h4>Bölüm {listeningContent.sections[currentSection].id}: {listeningContent.sections[currentSection].title}</h4>
-                <p>{listeningContent.sections[currentSection].description}</p>
+                <h4>🎧 Dinleme Metni</h4>
                 
                 <div className="section-controls">
                   <button 
-                    onClick={() => playText(listeningContent.sections[currentSection].audio_script)}
+                    onClick={() => playText(listeningContent.sections[0].audio_script)}
                     disabled={isGeneratingAudio}
                     className="btn btn-success"
+                    style={{ marginRight: '10px' }}
                   >
                     {isGeneratingAudio ? (
                       <>⏳ Ses üretiliyor...</>
@@ -453,7 +532,15 @@ const ListeningModule: React.FC = () => {
                   </button>
                   
                   <button 
-                    onClick={() => setShowTranscript(!showTranscript)}
+                    onClick={() => {
+                      setShowTranscript(!showTranscript);
+                      // Transcript gösterildiğinde scroll'u en üste götür
+                      if (!showTranscript) {
+                        setTimeout(() => {
+                          window.scrollTo({ top: 0, behavior: 'smooth' });
+                        }, 100);
+                      }
+                    }}
                     className="btn"
                     style={{ 
                       padding: '5px 15px', 
@@ -465,7 +552,7 @@ const ListeningModule: React.FC = () => {
                       cursor: 'pointer'
                     }}
                   >
-                    {showTranscript ? '👁️ Gizle' : '👁️ Göster'}
+                    {showTranscript ? '👁️ Metni Gizle' : '👁️ Metni Göster'}
                   </button>
                 </div>
 
@@ -473,15 +560,15 @@ const ListeningModule: React.FC = () => {
                   <div className="transcript">
                     <h5>📄 Metin:</h5>
                     <div className="transcript-content">
-                      {listeningContent.sections[currentSection].audio_script}
+                      {listeningContent.sections[0].audio_script}
                     </div>
                   </div>
                 )}
 
                 {/* Bölüm Soruları */}
                 <div className="section-questions">
-                  <h5>❓ Sorular:</h5>
-                  {listeningContent.sections[currentSection].questions.map((question, index) => (
+                  <h5>❓ Sorular (10 soru):</h5>
+                  {listeningContent.sections[0].questions.map((question, index) => (
                     <div key={question.id} className="question-item">
                       <p><strong>{index + 1}. {question.question}</strong></p>
                       
@@ -528,7 +615,7 @@ const ListeningModule: React.FC = () => {
                               checked={userAnswers[question.id] === true}
                               onChange={() => handleAnswerSelect(question.id, true)}
                             />
-                            True (Doğru)
+                            True
                           </label>
                           <label className="option-label">
                             <input
@@ -538,7 +625,7 @@ const ListeningModule: React.FC = () => {
                               checked={userAnswers[question.id] === false}
                               onChange={() => handleAnswerSelect(question.id, false)}
                             />
-                            False (Yanlış)
+                            False
                           </label>
                         </div>
                       )}
@@ -546,26 +633,14 @@ const ListeningModule: React.FC = () => {
                   ))}
                 </div>
 
-                {/* Bölüm Navigasyonu */}
-                <div className="section-navigation">
-                  <button 
-                    className="btn btn-secondary"
-                    onClick={prevSection}
-                    disabled={currentSection === 0}
-                  >
-                    ← Önceki Bölüm
-                  </button>
-                  
-                  <span className="section-indicator">
-                    Bölüm {currentSection + 1} / {listeningContent.sections.length}
-                  </span>
-                  
+                {/* Test Bitirme Butonu */}
+                <div className="text-center mt-4">
                   <button 
                     className="btn btn-primary"
-                    onClick={nextSection}
-                    disabled={currentSection === listeningContent.sections.length - 1}
+                    onClick={checkAnswers}
+                    style={{ fontSize: '1.2rem', padding: '15px 30px' }}
                   >
-                    Sonraki Bölüm →
+                    ✅ Testi Bitir ve Sonuçları Gör
                   </button>
                 </div>
               </div>
@@ -573,6 +648,81 @@ const ListeningModule: React.FC = () => {
           </div>
         )}
 
+        {/* Sonuçlar */}
+        {showResults && (
+          <div className="card" style={{ backgroundColor: '#f8f9fa', border: '2px solid #28a745' }}>
+            <h3 style={{ color: '#28a745', marginBottom: '20px' }}>🎉 Test Tamamlandı!</h3>
+            
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '20px' }}>
+              <div style={{ textAlign: 'center', padding: '15px', backgroundColor: 'white', borderRadius: '8px', border: '1px solid #dee2e6' }}>
+                <h4 style={{ color: '#007bff', margin: '0 0 10px 0' }}>📊 Puanınız</h4>
+                <div style={{ fontSize: '2em', fontWeight: 'bold', color: '#007bff' }}>{score}%</div>
+                <div style={{ fontSize: '0.9em', color: '#6c757d' }}>Doğru Cevap Oranı</div>
+              </div>
+              
+              <div style={{ textAlign: 'center', padding: '15px', backgroundColor: 'white', borderRadius: '8px', border: '1px solid #dee2e6' }}>
+                <h4 style={{ color: '#28a745', margin: '0 0 10px 0' }}>🏆 IELTS Band Score</h4>
+                <div style={{ fontSize: '2em', fontWeight: 'bold', color: '#28a745' }}>{ieltsBandScore}</div>
+                <div style={{ fontSize: '0.9em', color: '#6c757d' }}>Resmi IELTS Puanı</div>
+              </div>
+            </div>
+
+            <div style={{ textAlign: 'center', marginBottom: '20px' }}>
+              <div style={{ fontSize: '1.2em', fontWeight: 'bold', color: '#495057' }}>
+                Doğru: {rawScore} / {totalQuestions} soru
+              </div>
+            </div>
+
+            {feedback && (
+              <div style={{ backgroundColor: '#e7f3ff', padding: '15px', borderRadius: '8px', marginBottom: '20px', border: '1px solid #b3d9ff' }}>
+                <h5 style={{ color: '#0066cc', margin: '0 0 10px 0' }}>💬 Geri Bildirim:</h5>
+                <p style={{ margin: 0, color: '#495057' }}>{feedback}</p>
+              </div>
+            )}
+
+            {wrongQuestions.length > 0 && (
+              <div style={{ backgroundColor: '#fff3cd', padding: '15px', borderRadius: '8px', marginBottom: '20px', border: '1px solid #ffeaa7' }}>
+                <h5 style={{ color: '#856404', margin: '0 0 15px 0' }}>❌ Yanlış Yapılan Sorular:</h5>
+                {wrongQuestions.map((wrongQ, index) => (
+                  <div key={index} style={{ marginBottom: '15px', padding: '10px', backgroundColor: 'white', borderRadius: '5px', border: '1px solid #ddd' }}>
+                    <p style={{ margin: '0 0 8px 0', fontWeight: 'bold', color: '#495057' }}>
+                      Soru {wrongQ.question_id}: {wrongQ.question}
+                    </p>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', fontSize: '14px' }}>
+                      <div style={{ color: '#dc3545' }}>
+                        <strong>Sizin Cevabınız:</strong> {wrongQ.user_answer || 'Boş'}
+                      </div>
+                      <div style={{ color: '#28a745' }}>
+                        <strong>Doğru Cevap:</strong> {wrongQ.correct_answer}
+                      </div>
+                    </div>
+                    {wrongQ.options && wrongQ.options.length > 0 && (
+                      <div style={{ marginTop: '8px', fontSize: '12px', color: '#6c757d' }}>
+                        <strong>Seçenekler:</strong> {wrongQ.options.join(', ')}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div style={{ display: 'flex', gap: '10px', justifyContent: 'center', flexWrap: 'wrap' }}>
+              <button 
+                className="btn btn-primary"
+                onClick={() => {
+                  setShowResults(false);
+                  setListeningContent(null);
+                  setUserAnswers({});
+                  setTestStarted(false);
+                  setWrongQuestions([]);
+                }}
+                style={{ fontSize: '1.1rem', padding: '12px 24px' }}
+              >
+                🔄 Yeni Listening Üret
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Örnek İçerik */}
         {!listeningContent && (

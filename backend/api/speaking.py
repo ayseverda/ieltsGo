@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Header
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
@@ -7,8 +7,62 @@ import re
 import json
 from collections import Counter
 import httpx
+import jwt
 
 router = APIRouter()
+
+# JWT Secret (same as auth.py and scores.py)
+JWT_SECRET = "your-secret-key-here"
+JWT_ALGORITHM = "HS256"
+
+# JWT Token verification
+def verify_token(token: str) -> str:
+    """Verify JWT token and return user_id"""
+    try:
+        print(f"🔍 Speaking - Token decode ediliyor...")
+        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+        print(f"📋 Speaking - Token payload: {payload}")
+        
+        # auth.py'de 'sub' field'ı kullanılıyor, 'user_id' değil
+        user_id = payload.get("sub") or payload.get("user_id")
+        print(f"👤 Speaking - User ID: {user_id}")
+        
+        if user_id is None:
+            raise HTTPException(status_code=401, detail="Invalid token - no user_id")
+        return user_id
+    except jwt.ExpiredSignatureError:
+        print("⏰ Speaking - Token expired")
+        raise HTTPException(status_code=401, detail="Token expired")
+    except jwt.InvalidTokenError as e:
+        print(f"❌ Speaking - Invalid token: {e}")
+        raise HTTPException(status_code=401, detail=f"Invalid token: {str(e)}")
+
+# Dependency to get current user from token
+async def get_current_user(authorization: str = Header(None)) -> str:
+    print(f"🔐 Speaking - Authorization header kontrolü: {authorization}")
+    
+    if not authorization:
+        print("❌ Speaking - Authorization header yok")
+        raise HTTPException(status_code=401, detail="Authorization header required")
+    
+    if not authorization.startswith("Bearer "):
+        print("❌ Speaking - Bearer prefix yok")
+        raise HTTPException(status_code=401, detail="Authorization header must start with 'Bearer '")
+    
+    token = authorization.split(" ")[1]
+    print(f"🎫 Speaking - Token: {token[:20]}...")
+    
+    try:
+        print(f"🔄 Speaking - verify_token fonksiyonuna gidiliyor...")
+        user_id = verify_token(token)
+        print(f"✅ Speaking - Token doğrulandı, User ID: {user_id}")
+        return user_id
+    except HTTPException as e:
+        print(f"❌ Speaking - HTTP Exception: {e.detail}")
+        raise
+    except Exception as e:
+        print(f"❌ Speaking - Genel hata: {e}")
+        raise HTTPException(status_code=401, detail=f"Token doğrulama hatası: {str(e)}")
 
 # Pydantic models
 class MessageCreate(BaseModel):
@@ -304,16 +358,21 @@ def analyze_message(message: str) -> Analysis:
     )
 
 @router.post("/api/speaking/save-message")
-async def save_message(message_data: MessageCreate):
+async def save_message(message_data: MessageCreate, user_id: str = Depends(get_current_user)):
     """Kullanıcı mesajını analiz ederek veritabanına kaydeder"""
     try:
+        print(f"🎤 Speaking - Mesaj kaydetme isteği alındı:")
+        print(f"   User ID: {user_id}")
+        print(f"   Topic: {message_data.topicTitle}")
+        print(f"   Message Length: {len(message_data.message)}")
+        
         # Mesajı analiz et
         analysis = analyze_message(message_data.message)
         
         # Yeni mesaj objesi oluştur
         new_message = {
             "id": f"msg_{len(mock_messages_db) + 1}",
-            "userId": "user123",  # Gerçek uygulamada JWT'den gelecek
+            "userId": user_id,  # JWT'den gelen gerçek user_id
             "topicId": message_data.topicId,
             "topicTitle": message_data.topicTitle,
             "message": message_data.message,
@@ -321,8 +380,12 @@ async def save_message(message_data: MessageCreate):
             "analysis": analysis.dict()
         }
         
+        print(f"📝 Speaking - Veritabanına kaydediliyor: {new_message['id']}")
+        
         # Mock veritabanına ekle
         mock_messages_db.append(new_message)
+        
+        print(f"✅ Speaking - Mesaj başarıyla kaydedildi. ID: {new_message['id']}")
         
         return JSONResponse(
             status_code=201,
@@ -334,13 +397,16 @@ async def save_message(message_data: MessageCreate):
         )
         
     except Exception as e:
+        print(f"❌ Speaking - Mesaj kaydetme hatası: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Mesaj kaydedilirken hata: {str(e)}")
 
 @router.get("/api/speaking/user-messages")
-async def get_user_messages(userId: str = "user123"):
+async def get_user_messages(user_id: str = Depends(get_current_user)):
     """Kullanıcının tüm mesajlarını analiz bilgileriyle döndürür"""
     try:
-        user_messages = [msg for msg in mock_messages_db if msg["userId"] == userId]
+        print(f"📊 Speaking - İstatistik isteği alındı - User ID: {user_id}")
+        
+        user_messages = [msg for msg in mock_messages_db if msg["userId"] == user_id]
         
         # Timestamp'leri string'e çevir (JSON serializasyon için)
         for msg in user_messages:

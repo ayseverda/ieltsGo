@@ -15,7 +15,7 @@ import requests
 
 # API Keys - Direkt hardcode
 GEMINI_API_KEY = "AIzaSyCYeBOoGsW1du63HlKZ7W0AtknImO9Y1fo"  # Gemini API Key
-ELEVENLABS_API_KEY = "sk_f9fb41089e1f4d279108e5bbcaa019f5a95ed0ad40d560be"  # ElevenLabs API Key - https://elevenlabs.io
+ELEVENLABS_API_KEY = "sk_7709ea5148eefd7f751933a1400a745f24d5ff4e8f643ade"  # ElevenLabs API Key - https://elevenlabs.io
 
 # Gemini API'yi yapılandır
 genai.configure(api_key=GEMINI_API_KEY)
@@ -40,9 +40,12 @@ class ListeningRequest(BaseModel):
 
 class ListeningResponse(BaseModel):
     score: float
+    ielts_band_score: float
     feedback: str
     correct_answers: List[str]
     detailed_analysis: dict
+    raw_score: int
+    total_questions: int
 
 class AudioFileResponse(BaseModel):
     file_id: str
@@ -60,6 +63,7 @@ class GenerateIELTSListeningRequest(BaseModel):
     topic: str
     difficulty: str = "intermediate"  # beginner, intermediate, advanced
     accent: str = "british"  # british, american, australian
+    section_type: str = "full_test"  # full_test, section_1, section_2, section_3, section_4
 
 class GeneratedListeningResponse(BaseModel):
     transcript: str
@@ -90,11 +94,115 @@ class TTSRequest(BaseModel):
     accent: str = "british"  # british, american, australian
     speed: float = 1.0  # 0.5 - 2.0
 
+class DialogueTTSRequest(BaseModel):
+    text: str
+    accent: str = "british"  # british, american, australian
+    speed: float = 1.0  # 0.5 - 2.0
+
 class TTSResponse(BaseModel):
     message: str
     duration: float
     status: str
     audio_data: Optional[str] = None  # Base64 encoded audio
+
+# IELTS Puanlama Sistemi
+def calculate_ielts_band_score(raw_score: int, total_questions: int) -> float:
+    """
+    IELTS Listening band score hesaplama
+    10 soru üzerinden 40 soru gibi hesaplanır (IELTS standardı)
+    """
+    if total_questions == 0:
+        return 0.0
+    
+    # 10 soru üzerinden 40 soru gibi hesaplama
+    if total_questions == 10:
+        # 1 yanlış = 4 yanlış gibi hesapla
+        wrong_answers = total_questions - raw_score
+        scaled_wrong = wrong_answers * 4  # 10 soruda 1 yanlış = 40 soruda 4 yanlış
+        scaled_score = 40 - scaled_wrong  # 40 sorudan yanlışları çıkar
+        
+        # 40 soru üzerinden band score hesaplama
+        if scaled_score >= 39:
+            return 9.0
+        elif scaled_score >= 37:
+            return 8.5
+        elif scaled_score >= 35:
+            return 8.0
+        elif scaled_score >= 32:
+            return 7.5
+        elif scaled_score >= 30:
+            return 7.0
+        elif scaled_score >= 26:
+            return 6.5
+        elif scaled_score >= 23:
+            return 6.0
+        elif scaled_score >= 18:
+            return 5.5
+        elif scaled_score >= 16:
+            return 5.0
+        elif scaled_score >= 13:
+            return 4.5
+        elif scaled_score >= 11:
+            return 4.0
+        elif scaled_score >= 8:
+            return 3.5
+        elif scaled_score >= 6:
+            return 3.0
+        elif scaled_score >= 4:
+            return 2.5
+        elif scaled_score >= 3:
+            return 2.0
+        else:
+            return 1.0
+    
+    # 40 soru üzerinden hesaplama (fallback)
+    percentage = (raw_score / total_questions) * 100
+    
+    if raw_score >= 39:
+        return 9.0
+    elif raw_score >= 37:
+        return 8.5
+    elif raw_score >= 35:
+        return 8.0
+    elif raw_score >= 32:
+        return 7.5
+    elif raw_score >= 30:
+        return 7.0
+    elif raw_score >= 26:
+        return 6.5
+    elif raw_score >= 23:
+        return 6.0
+    elif raw_score >= 18:
+        return 5.5
+    elif raw_score >= 16:
+        return 5.0
+    elif raw_score >= 13:
+        return 4.5
+    elif raw_score >= 11:
+        return 4.0
+    elif raw_score >= 8:
+        return 3.5
+    elif raw_score >= 6:
+        return 3.0
+    elif raw_score >= 4:
+        return 2.5
+    elif raw_score >= 3:
+        return 2.0
+    else:
+        return 1.0
+
+def get_ielts_feedback(band_score: float) -> str:
+    """IELTS band score'a göre geri bildirim"""
+    if band_score >= 8.0:
+        return "Excellent! You have a very strong command of English listening skills. This level indicates near-native proficiency."
+    elif band_score >= 7.0:
+        return "Good! You have a good command of English listening skills. This level is suitable for most academic and professional purposes."
+    elif band_score >= 6.0:
+        return "Competent! You have an effective command of English listening skills. Some improvement needed for complex academic contexts."
+    elif band_score >= 5.0:
+        return "Modest! You have a partial command of English listening skills. More practice needed for academic and professional contexts."
+    else:
+        return "Limited! You have basic English listening skills. Significant improvement needed through regular practice."
 
 # API endpoints
 @app.get("/")
@@ -297,28 +405,34 @@ Finally, I'd like to discuss some recommendations for the future. Based on curre
 @app.post("/generate-ielts-listening", response_model=IELTSListeningResponse)
 async def generate_ielts_listening(request: GenerateIELTSListeningRequest):
     """
-    Gerçek IELTS Listening formatında 4 bölüm, 40 soru üretir
+    IELTS Listening formatında tek bölüm, 10 soru üretir
     """
     try:
+        # Bölüm tipine göre açıklama
+        section_descriptions = {
+            "section_1": "Section 1: Social context (conversation between 2 people) - 10 questions",
+            "section_2": "Section 2: Social context (monologue) - 10 questions",
+            "section_3": "Section 3: Educational context (conversation between 2-4 people) - 10 questions", 
+            "section_4": "Section 4: Academic context (monologue/lecture) - 10 questions",
+            "full_test": "Complete test with all 4 sections (40 questions total)"
+        }
+        
+        section_desc = section_descriptions.get(request.section_type, section_descriptions["section_1"])
+        
         # IELTS Listening formatı için prompt
         prompt = f"""
-        Create a complete IELTS Listening test about {request.topic} at {request.difficulty} level.
+        Create an IELTS Listening {request.section_type} about {request.topic} at {request.difficulty} level.
         
-        Generate 4 sections with exactly 40 questions total (10 questions per section):
+        Generate exactly 10 questions for this section:
         
-        Section 1: Social context (conversation between 2 people) - 10 questions
-        Section 2: Social context (monologue) - 10 questions  
-        Section 3: Educational context (conversation between 2-4 people) - 10 questions
-        Section 4: Academic context (monologue/lecture) - 10 questions
+        {section_desc}
         
-        Each section should have realistic IELTS question types:
-        - Multiple choice (A, B, C, D)
-        - Fill in the blank (1-3 words)
-        - Form completion
-        - Note completion
-        - Sentence completion
-        - True/False/Not Given
-        - Matching
+        Use realistic IELTS question types:
+        - Multiple choice (A, B, C, D) - 3-4 questions
+        - Fill in the blank (1-3 words) - 3-4 questions  
+        - True/False/Not Given - 2-3 questions
+        - Form completion - 1-2 questions
+        - Note completion - 1-2 questions
         
         Return ONLY this JSON format (no other text):
         {{
@@ -909,7 +1023,7 @@ async def elevenlabs_text_to_speech(request: TTSRequest):
     """
     try:
         # ElevenLabs API key - direkt dosyadan al
-        if not ELEVENLABS_API_KEY or ELEVENLABS_API_KEY == "your_elevenlabs_api_key_here":
+        if not ELEVENLABS_API_KEY or ELEVENLABS_API_KEY == "your_elevenlabs_api_key_here" or ELEVENLABS_API_KEY == "sk_f9fb41089e1f4d279108e5bbcaa019f5a95ed0ad40d560be":
             print("⚠️  ELEVENLABS_API_KEY ayarlanmamış! listening.py dosyasına ekleyin.")
             print("   Fallback olarak Windows TTS kullanılacak.")
             return await enhanced_text_to_speech(request)
@@ -934,12 +1048,12 @@ async def elevenlabs_text_to_speech(request: TTSRequest):
         
         data = {
             "text": request.text,
-            "model_id": "eleven_monolingual_v1",
+            "model_id": "eleven_multilingual_v2",  # Daha kaliteli model
             "voice_settings": {
-                "stability": 0.5,
-                "similarity_boost": 0.5,
-                "style": 0.0,
-                "use_speaker_boost": True
+                "stability": 0.75,  # Daha kararlı ses
+                "similarity_boost": 0.75,  # Daha benzer ses
+                "style": 0.5,  # Stil kontrolü
+                "use_speaker_boost": True  # Konuşmacı boost
             }
         }
         
@@ -1207,10 +1321,12 @@ async def elevenlabs_text_to_speech_func(text: str):
         }
         data = {
             "text": text,
-            "model_id": "eleven_monolingual_v1",
+            "model_id": "eleven_multilingual_v2",  # Daha kaliteli model
             "voice_settings": {
-                "stability": 0.5,
-                "similarity_boost": 0.5
+                "stability": 0.75,  # Daha kararlı ses
+                "similarity_boost": 0.75,  # Daha benzer ses
+                "style": 0.5,  # Stil kontrolü
+                "use_speaker_boost": True  # Konuşmacı boost
             }
         }
         
@@ -1238,7 +1354,7 @@ async def elevenlabs_text_to_speech(request: dict):
             raise HTTPException(status_code=400, detail="Metin boş olamaz")
         
         # ElevenLabs API key kontrolü
-        if ELEVENLABS_API_KEY == "your_elevenlabs_api_key_here":
+        if ELEVENLABS_API_KEY == "your_elevenlabs_api_key_here" or ELEVENLABS_API_KEY == "sk_f9fb41089e1f4d279108e5bbcaa019f5a95ed0ad40d560be":
             print("ElevenLabs API key ayarlanmamış, fallback TTS kullanılıyor")
             return await enhanced_text_to_speech(text)
         
@@ -1256,6 +1372,524 @@ async def elevenlabs_text_to_speech(request: dict):
         print(f"ElevenLabs TTS hatası: {e}")
         # Fallback TTS
         return await enhanced_text_to_speech(request.get("text", ""))
+
+# Yeni IELTS Listening fonksiyonu (10 soru)
+@app.post("/generate-ielts-listening-new", response_model=IELTSListeningResponse)
+async def generate_ielts_listening_new(request: GenerateIELTSListeningRequest):
+    """
+    IELTS Listening formatında tek bölüm, 10 soru üretir
+    """
+    try:
+        # Bölüm tipine göre açıklama
+        section_descriptions = {
+            "section_1": "Section 1: Social context (conversation between 2 people) - 10 questions",
+            "section_2": "Section 2: Social context (monologue) - 10 questions",
+            "section_3": "Section 3: Educational context (conversation between 2-4 people) - 10 questions", 
+            "section_4": "Section 4: Academic context (monologue/lecture) - 10 questions"
+        }
+        
+        section_desc = section_descriptions.get(request.section_type, section_descriptions["section_1"])
+        
+        # IELTS Listening formatı için prompt
+        prompt = f"""
+        Create an IELTS Listening {request.section_type} about {request.topic} at {request.difficulty} level.
+        
+        Generate exactly 10 questions for this section:
+        
+        {section_desc}
+        
+        Use realistic IELTS question types:
+        - Multiple choice (A, B, C, D) - 3-4 questions
+        - Fill in the blank (1-3 words) - 3-4 questions  
+        - True/False/Not Given - 2-3 questions
+        - Form completion - 1-2 questions
+        - Note completion - 1-2 questions
+        
+        Return ONLY this JSON format (no other text):
+        {{
+            "sections": [
+                {{
+                    "id": 1,
+                    "title": "{request.section_type.replace('_', ' ').title()}",
+                    "description": "A realistic conversation or monologue about {request.topic}",
+                    "audio_script": "Create a realistic conversation between two people about {request.topic}. Use format: 'Speaker 1: [text]' and 'Speaker 2: [text]'. Include natural speech patterns, hesitations, and realistic dialogue (250-400 words).",
+                    "questions": [
+                        {{
+                            "id": 1,
+                            "question": "What is the main topic of the conversation?",
+                            "type": "multiple_choice",
+                            "options": ["A) Option 1", "B) Option 2", "C) Option 3", "D) Option 4"],
+                            "correct_answer": 0
+                        }},
+                        {{
+                            "id": 2,
+                            "question": "Complete the sentence: The speaker mentions that _____ is important.",
+                            "type": "fill_in_blank",
+                            "correct_answer": "education",
+                            "word_limit": 2
+                        }},
+                        {{
+                            "id": 3,
+                            "question": "The speaker is satisfied with the current situation. True/False/Not Given",
+                            "type": "true_false",
+                            "correct_answer": true
+                        }},
+                        {{
+                            "id": 4,
+                            "question": "Complete the form: Name: _____",
+                            "type": "form_completion",
+                            "correct_answer": "John Smith",
+                            "word_limit": 2
+                        }},
+                        {{
+                            "id": 5,
+                            "question": "The meeting will take place at _____ o'clock.",
+                            "type": "fill_in_blank",
+                            "correct_answer": "3",
+                            "word_limit": 1
+                        }},
+                        {{
+                            "id": 6,
+                            "question": "What does the speaker recommend?",
+                            "type": "multiple_choice",
+                            "options": ["A) Wait longer", "B) Try again", "C) Give up", "D) Ask for help"],
+                            "correct_answer": 1
+                        }},
+                        {{
+                            "id": 7,
+                            "question": "Complete the notes: Location: _____",
+                            "type": "note_completion",
+                            "correct_answer": "library",
+                            "word_limit": 1
+                        }},
+                        {{
+                            "id": 8,
+                            "question": "The speaker agrees with the proposal. True/False/Not Given",
+                            "type": "true_false",
+                            "correct_answer": false
+                        }},
+                        {{
+                            "id": 9,
+                            "question": "The deadline is _____ days from now.",
+                            "type": "fill_in_blank",
+                            "correct_answer": "seven",
+                            "word_limit": 1
+                        }},
+                        {{
+                            "id": 10,
+                            "question": "What is the speaker's main concern?",
+                            "type": "multiple_choice",
+                            "options": ["A) Time", "B) Money", "C) Quality", "D) Safety"],
+                            "correct_answer": 0
+                        }}
+                    ],
+                    "duration": 10
+                }}
+            ],
+            "total_questions": 10,
+            "total_duration": 10,
+            "topic": "{request.topic}",
+            "difficulty": "{request.difficulty}",
+            "instructions": "You will hear a recording and you will have to answer questions on what you hear. There will be time for you to read the instructions and questions and you will have a chance to check your work. The recording will be played once only."
+        }}
+        
+        IMPORTANT: 
+        - Return ONLY the JSON object, no explanations
+        - Generate exactly 10 questions with varied types
+        - Use realistic IELTS question types
+        - Audio scripts should be natural and conversational
+        - Questions should test listening comprehension
+        - Make sure all correct_answer values match the question types
+        """
+
+        response = model.generate_content(prompt)
+        
+        # JSON'u parse et
+        import json
+        import re
+        
+        try:
+            response_text = response.text.strip()
+            json_match = re.search(r'```json\s*(.*?)\s*```', response_text, re.DOTALL)
+            if json_match:
+                json_text = json_match.group(1)
+            else:
+                json_text = response_text
+            
+            data = json.loads(json_text)
+            
+        except Exception as e:
+            print(f"JSON parse hatası: {e}")
+            print(f"Gemini yanıtı: {response.text}")
+            print("Fallback IELTS data kullanılıyor...")
+            
+            # Fallback IELTS data - 10 soru
+            data = {
+                "sections": [
+                    {
+                        "id": 1,
+                        "title": f"{request.section_type.replace('_', ' ').title()}",
+                        "description": f"A realistic conversation or monologue about {request.topic}",
+                        "audio_script": f"Speaker 1: Welcome to today's discussion about {request.topic}. I'm Dr. Sarah Johnson and I'll be talking with my colleague Mark about the key aspects of {request.topic}.\n\nSpeaker 2: Thank you, Dr. Johnson. I'm Mark Wilson and I'm excited to discuss this topic with you. {request.topic} has become increasingly important in recent years.\n\nSpeaker 1: That's absolutely right, Mark. Understanding {request.topic} properly can really help students in their studies and career development.\n\nSpeaker 2: Could you start by explaining the basic concepts to our listeners?\n\nSpeaker 1: Of course. Let me begin with the fundamental principles and then we'll move on to some practical examples that students can relate to.",
+                        "questions": [
+                            {
+                                "id": 1,
+                                "question": "Who are the two speakers in this conversation?",
+                                "type": "multiple_choice",
+                                "options": [
+                                    "A) Dr. Sarah Johnson and Mark Wilson",
+                                    "B) Dr. Mark Wilson and Professor Jane Smith", 
+                                    "C) Dr. Sarah Johnson and Dr. Michael Brown",
+                                    "D) Mark Wilson and Dr. Michael Brown"
+                                ],
+                                "correct_answer": 0
+                            },
+                            {
+                                "id": 2,
+                                "question": f"Complete the sentence: Understanding {request.topic} can help you in your _____ and career.",
+                                "type": "fill_in_blank",
+                                "correct_answer": "studies",
+                                "word_limit": 1
+                            },
+                            {
+                                "id": 3,
+                                "question": f"{request.topic} has become less important in recent years. True/False/Not Given",
+                                "type": "true_false",
+                                "correct_answer": False
+                            },
+                            {
+                                "id": 4,
+                                "question": "Complete the form: Speaker's title: _____",
+                                "type": "form_completion",
+                                "correct_answer": "Dr.",
+                                "word_limit": 1
+                            },
+                            {
+                                "id": 5,
+                                "question": "The speaker will discuss practical examples _____ explaining basic concepts.",
+                                "type": "fill_in_blank",
+                                "correct_answer": "after",
+                                "word_limit": 1
+                            },
+                            {
+                                "id": 6,
+                                "question": "What does Speaker 2 ask Speaker 1 to do?",
+                                "type": "multiple_choice",
+                                "options": [
+                                    "A) Give practical examples",
+                                    "B) Explain basic concepts",
+                                    "C) Discuss career options",
+                                    "D) Talk about recent studies"
+                                ],
+                                "correct_answer": 1
+                            },
+                            {
+                                "id": 7,
+                                "question": "Complete the notes: Focus areas: _____ concepts and practical examples",
+                                "type": "note_completion",
+                                "correct_answer": "basic",
+                                "word_limit": 1
+                            },
+                            {
+                                "id": 8,
+                                "question": "The speaker is a university professor. True/False/Not Given",
+                                "type": "true_false",
+                                "correct_answer": True
+                            },
+                            {
+                                "id": 9,
+                                "question": "The recording is about a _____ discussion.",
+                                "type": "fill_in_blank",
+                                "correct_answer": "today's",
+                                "word_limit": 1
+                            },
+                            {
+                                "id": 10,
+                                "question": "What is the main purpose of this recording?",
+                                "type": "multiple_choice",
+                                "options": [
+                                    "A) To introduce new students",
+                                    "B) To explain key concepts",
+                                    "C) To advertise a course",
+                                    "D) To conduct an interview"
+                                ],
+                                "correct_answer": 1
+                            }
+                        ],
+                        "duration": 10
+                    }
+                ],
+                "total_questions": 10,
+                "total_duration": 10,
+                "topic": request.topic,
+                "difficulty": request.difficulty,
+                "instructions": "You will hear a recording and you will have to answer questions on what you hear. There will be time for you to read the instructions and questions and you will have a chance to check your work. The recording will be played once only."
+            }
+        
+        return IELTSListeningResponse(**data)
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"AI üretim hatası: {str(e)}")
+
+# IELTS Listening puanlama fonksiyonu
+@app.post("/evaluate-ielts-listening", response_model=ListeningResponse)
+async def evaluate_ielts_listening(request: ListeningRequest):
+    """
+    IELTS Listening puanlaması - 10 soru üzerinden
+    """
+    try:
+        # Kullanıcı cevaplarını kontrol et
+        correct_count = 0
+        total_questions = len(request.questions)
+        correct_answers = []
+        wrong_questions = []  # Yanlış yapılan sorular
+        detailed_analysis = {
+            "multiple_choice_correct": 0,
+            "fill_in_blank_correct": 0,
+            "true_false_correct": 0,
+            "form_completion_correct": 0,
+            "note_completion_correct": 0,
+            "question_type_breakdown": {}
+        }
+        
+        for i, question in enumerate(request.questions):
+            user_answer = request.user_answers[i] if i < len(request.user_answers) else ""
+            correct_answer = question.get("correct_answer", "")
+            question_type = question.get("type", "")
+            
+            # Soru tipine göre cevap kontrolü
+            is_correct = False
+            
+            if question_type == "multiple_choice":
+                # Multiple choice için index kontrolü
+                try:
+                    user_choice = int(user_answer) if user_answer.isdigit() else -1
+                    correct_choice = int(correct_answer) if isinstance(correct_answer, (int, str)) and str(correct_answer).isdigit() else -1
+                    is_correct = user_choice == correct_choice
+                    if is_correct:
+                        detailed_analysis["multiple_choice_correct"] += 1
+                except:
+                    is_correct = False
+                    
+            elif question_type == "fill_in_blank":
+                # Fill in the blank için string karşılaştırma (case insensitive)
+                user_text = str(user_answer).strip().lower()
+                correct_text = str(correct_answer).strip().lower()
+                is_correct = user_text == correct_text
+                if is_correct:
+                    detailed_analysis["fill_in_blank_correct"] += 1
+                    
+            elif question_type == "true_false":
+                # True/False için boolean kontrolü
+                user_bool = str(user_answer).strip().lower()
+                correct_bool = str(correct_answer).strip().lower()
+                is_correct = user_bool == correct_bool
+                if is_correct:
+                    detailed_analysis["true_false_correct"] += 1
+                    
+            elif question_type == "form_completion":
+                # Form completion için string karşılaştırma
+                user_text = str(user_answer).strip().lower()
+                correct_text = str(correct_answer).strip().lower()
+                is_correct = user_text == correct_text
+                if is_correct:
+                    detailed_analysis["form_completion_correct"] += 1
+                    
+            elif question_type == "note_completion":
+                # Note completion için string karşılaştırma
+                user_text = str(user_answer).strip().lower()
+                correct_text = str(correct_answer).strip().lower()
+                is_correct = user_text == correct_text
+                if is_correct:
+                    detailed_analysis["note_completion_correct"] += 1
+            
+            if is_correct:
+                correct_count += 1
+            else:
+                # Yanlış yapılan soruyu kaydet
+                # Multiple choice için doğru cevabı A,B,C,D formatına çevir
+                display_correct_answer = str(correct_answer)
+                if question_type == "multiple_choice" and question.get("options"):
+                    try:
+                        correct_index = int(correct_answer)
+                        if 0 <= correct_index < len(question.get("options", [])):
+                            display_correct_answer = f"{chr(65 + correct_index)}"
+                    except:
+                        pass
+                
+                # Kullanıcı cevabını da A,B,C,D formatına çevir
+                display_user_answer = str(user_answer)
+                if question_type == "multiple_choice":
+                    try:
+                        user_index = int(user_answer)
+                        display_user_answer = f"{chr(65 + user_index)}"
+                    except:
+                        pass
+                
+                wrong_questions.append({
+                    "question_id": question.get("id", i+1),
+                    "question": question.get("question", ""),
+                    "question_type": question_type,
+                    "user_answer": display_user_answer,
+                    "correct_answer": display_correct_answer,
+                    "options": question.get("options", [])
+                })
+                
+            correct_answers.append(str(correct_answer))
+            
+            # Soru tipi breakdown
+            if question_type not in detailed_analysis["question_type_breakdown"]:
+                detailed_analysis["question_type_breakdown"][question_type] = {"total": 0, "correct": 0}
+            detailed_analysis["question_type_breakdown"][question_type]["total"] += 1
+            if is_correct:
+                detailed_analysis["question_type_breakdown"][question_type]["correct"] += 1
+        
+        # IELTS band score hesapla
+        ielts_band_score = calculate_ielts_band_score(correct_count, total_questions)
+        
+        # Yüzdelik skor
+        percentage_score = (correct_count / total_questions) * 100 if total_questions > 0 else 0
+        
+        # Geri bildirim
+        feedback = get_ielts_feedback(ielts_band_score)
+        
+        return ListeningResponse(
+            score=percentage_score,
+            ielts_band_score=ielts_band_score,
+            feedback=feedback,
+            correct_answers=correct_answers,
+            detailed_analysis={**detailed_analysis, "wrong_questions": wrong_questions},
+            raw_score=correct_count,
+            total_questions=total_questions
+        )
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Puanlama hatası: {str(e)}")
+
+# İki kişi konuşması için TTS
+async def dialogue_text_to_speech(request: DialogueTTSRequest):
+    """
+    İki kişi konuşması için farklı seslerle TTS
+    """
+    try:
+        # Metni sıralı konuşma parçalarına ayır
+        lines = request.text.split('\n')
+        dialogue_parts = []  # [(speaker, text), (speaker, text), ...]
+        current_speaker = 1
+        
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+                
+            # Konuşmacı belirteçlerini kontrol et
+            if line.lower().startswith(('speaker 1:', 'person 1:', 'a:', 'first speaker:')):
+                current_speaker = 1
+                line = line.split(':', 1)[1].strip()
+            elif line.lower().startswith(('speaker 2:', 'person 2:', 'b:', 'second speaker:')):
+                current_speaker = 2
+                line = line.split(':', 1)[1].strip()
+            
+            if line:  # Boş satır değilse ekle
+                dialogue_parts.append((current_speaker, line))
+        
+        # Eğer konuşmacı belirteci yoksa, metni sırayla ikiye böl
+        if not dialogue_parts:
+            sentences = request.text.split('. ')
+            mid_sentence = len(sentences) // 2
+            dialogue_parts = [
+                (1, '. '.join(sentences[:mid_sentence]) + '.'),
+                (2, '. '.join(sentences[mid_sentence:]))
+            ]
+        
+        # Ses ID'leri - farklı kişiler için
+        voice_ids = {
+            "british": {
+                "speaker1": "pNInz6obpgDQGcFmaJgB",  # Adam (British)
+                "speaker2": "EXAVITQu4vr4xnSDxMaL"   # Bella (British)
+            },
+            "american": {
+                "speaker1": "VR6AewLTigWG4xSOukaG",  # Arnold (American)
+                "speaker2": "EXAVITQu4vr4xnSDxMaL"   # Bella (American)
+            },
+            "australian": {
+                "speaker1": "pNInz6obpgDQGcFmaJgB",  # Adam (Australian)
+                "speaker2": "EXAVITQu4vr4xnSDxMaL"   # Bella (Australian)
+            },
+            "canadian": {
+                "speaker1": "VR6AewLTigWG4xSOukaG",  # Arnold (Canadian-like)
+                "speaker2": "EXAVITQu4vr4xnSDxMaL"   # Bella (Canadian-like)
+            },
+            "irish": {
+                "speaker1": "pNInz6obpgDQGcFmaJgB",  # Adam (Irish-like)
+                "speaker2": "EXAVITQu4vr4xnSDxMaL"   # Bella (Irish-like)
+            }
+        }
+        
+        # ElevenLabs API key kontrolü
+        if not ELEVENLABS_API_KEY or ELEVENLABS_API_KEY == "your_elevenlabs_api_key_here" or ELEVENLABS_API_KEY == "sk_f9fb41089e1f4d279108e5bbcaa019f5a95ed0ad40d560be":
+            print("⚠️  ElevenLabs API key geçersiz, fallback TTS kullanılıyor")
+            return await enhanced_text_to_speech(request.text)
+        
+        # Sıralı konuşma için ses oluştur
+        combined_audio = b""
+        
+        for speaker_num, speaker_text in dialogue_parts:
+            voice_id = voice_ids.get(request.accent, voice_ids["british"])[f"speaker{speaker_num}"]
+            
+            try:
+                # ElevenLabs API çağrısı
+                url = f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}"
+                headers = {
+                    "Accept": "audio/mpeg",
+                    "Content-Type": "application/json",
+                    "xi-api-key": ELEVENLABS_API_KEY
+                }
+                data = {
+                    "text": speaker_text,
+                    "model_id": "eleven_multilingual_v2",
+                    "voice_settings": {
+                        "stability": 0.75,
+                        "similarity_boost": 0.75,
+                        "style": 0.5,
+                        "use_speaker_boost": True
+                    }
+                }
+                
+                response = requests.post(url, json=data, headers=headers)
+                if response.status_code == 200:
+                    combined_audio += response.content
+                    # Konuşmacılar arası kısa bekleme (0.5 saniye)
+                    combined_audio += b"\x00" * 24000  # 0.5 saniye sessizlik
+                else:
+                    print(f"ElevenLabs API hatası (Speaker {speaker_num}): {response.status_code}")
+                    # Fallback için orijinal metni kullan
+                    return await enhanced_text_to_speech(request.text)
+                    
+            except Exception as e:
+                print(f"ElevenLabs TTS hatası (Speaker {speaker_num}): {e}")
+                return await enhanced_text_to_speech(request.text)
+        
+        # Ses süresini hesapla (yaklaşık)
+        duration = len(combined_audio) / 48000  # 48kHz sample rate varsayımı
+        
+        return TTSResponse(
+            message=f"İki kişi konuşması oluşturuldu: {len(dialogue_parts)} konuşma parçası",
+            duration=duration,
+            status="success",
+            audio_data=base64.b64encode(combined_audio).decode('utf-8')
+        )
+        
+    except Exception as e:
+        print(f"Dialogue TTS hatası: {e}")
+        return await enhanced_text_to_speech(request.text)
+
+@app.post("/dialogue-tts", response_model=TTSResponse)
+async def dialogue_tts_endpoint(request: DialogueTTSRequest):
+    """
+    İki kişi konuşması için TTS endpoint
+    """
+    return await dialogue_text_to_speech(request)
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8003)

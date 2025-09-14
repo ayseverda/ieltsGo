@@ -70,6 +70,46 @@ const WritingModule: React.FC = () => {
       .catch(() => setVisual(generateLocalVisual(visual)));
   };
 
+  const saveScoreToDatabase = async (scoreData: any) => {
+    try {
+      console.log('💾 Writing puan kaydetme başlatılıyor...', scoreData);
+      
+      const token = localStorage.getItem('token');
+      console.log('🔑 Token kontrolü:', token ? 'Token var' : 'Token yok');
+      
+      if (!token) {
+        console.log('❌ Kullanıcı giriş yapmamış, puan kaydedilmiyor');
+        return;
+      }
+
+      console.log('📤 Backend\'e gönderiliyor:', {
+        url: 'http://localhost:8000/api/save-score',
+        data: scoreData
+      });
+
+      const response = await fetch('http://localhost:8000/api/save-score', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(scoreData),
+      });
+
+      console.log('📥 Backend yanıtı:', response.status, response.statusText);
+
+      if (response.ok) {
+        const result = await response.json();
+        console.log('✅ Writing puanı başarıyla kaydedildi:', result);
+      } else {
+        const errorText = await response.text();
+        console.error('❌ Writing puan kaydetme hatası:', errorText);
+      }
+    } catch (error) {
+      console.error('❌ Writing puan kaydetme hatası:', error);
+    }
+  };
+
   const handleEvaluate = async () => {
     setError(null);
     setResult(null);
@@ -83,7 +123,26 @@ const WritingModule: React.FC = () => {
     try {
       setLoading(true);
       const res = await axios.post('http://localhost:8000/api/writing/evaluate', { essay, topic, mode, task, letterType });
-      setResult(normalizeResult(res.data));
+      const normalizedResult = normalizeResult(res.data);
+      setResult(normalizedResult);
+
+      // Puanı veritabanına kaydet
+      await saveScoreToDatabase({
+        module: 'writing',
+        band_score: normalizedResult.overall_band || 0,
+        raw_score: 0, // Writing'de raw score yok
+        total_questions: 1, // 1 essay
+        topic: topic || 'Custom Topic',
+        difficulty: mode === 'academic' ? 'advanced' : 'intermediate',
+        accent: null, // Writing'de accent yok
+        detailed_results: {
+          criteria: normalizedResult.criteria || {},
+          strengths: normalizedResult.strengths || [],
+          weaknesses: normalizedResult.weaknesses || [],
+          suggestions: normalizedResult.suggestions || [],
+          essay_length: essay.length
+        }
+      });
     } catch (e: any) {
       setError(e?.response?.data?.detail || 'Değerlendirme sırasında hata oluştu.');
     } finally {

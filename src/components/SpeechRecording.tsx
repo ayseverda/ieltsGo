@@ -65,6 +65,11 @@ const SpeechRecording: React.FC<SpeechRecordingProps> = () => {
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
   const [error, setError] = useState('');
   
+  // Session bazlı puanlama için state'ler
+  const [sessionScores, setSessionScores] = useState<number[]>([]);
+  const [sessionMessages, setSessionMessages] = useState<string[]>([]);
+  const [sessionStarted, setSessionStarted] = useState(false);
+  
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -148,15 +153,52 @@ const SpeechRecording: React.FC<SpeechRecordingProps> = () => {
       timestamp: new Date()
     };
     setConversationHistory([aiMessage]);
+    
+    // Session'ı başlat
+    setSessionStarted(true);
+    setSessionScores([]);
+    setSessionMessages([]);
+    console.log('🎤 Yeni speaking session başlatıldı:', topic.title);
   };
 
   const backToTopics = () => {
+    console.log('🔄 backToTopics çağrıldı', {
+      sessionStarted: sessionStarted,
+      sessionScoresLength: sessionScores.length,
+      sessionScores: sessionScores
+    });
+    
+    // Session bitir ve puanı kaydet
+    if (sessionStarted && sessionScores.length > 0) {
+      console.log('💾 Session bitiyor, puan kaydediliyor...');
+      saveSessionScore();
+    } else {
+      console.log('📊 Session bitiyor ama puan yok, kaydetme atlanıyor');
+    }
+    
     setSelectedTopic(null);
     setConversationHistory([]);
     setError('');
+    setSessionStarted(false);
+    setSessionScores([]);
+    setSessionMessages([]);
   };
 
   const resetSession = () => {
+    console.log('🔄 resetSession çağrıldı', {
+      sessionStarted: sessionStarted,
+      sessionScoresLength: sessionScores.length,
+      sessionScores: sessionScores
+    });
+    
+    // Session bitir ve puanı kaydet
+    if (sessionStarted && sessionScores.length > 0) {
+      console.log('💾 Session sıfırlanıyor, puan kaydediliyor...');
+      saveSessionScore();
+    } else {
+      console.log('📊 Session sıfırlanıyor ama puan yok, kaydetme atlanıyor');
+    }
+    
     const newHistory: ConversationMessage[] = selectedTopic ? [{
       id: Date.now().toString(),
       type: 'ai' as const,
@@ -166,6 +208,11 @@ const SpeechRecording: React.FC<SpeechRecordingProps> = () => {
     
     setConversationHistory(newHistory);
     setError('');
+    
+    // Yeni session başlat
+    setSessionScores([]);
+    setSessionMessages([]);
+    console.log('🔄 Speaking session sıfırlandı');
   };
 
   const startRecording = async () => {
@@ -213,10 +260,24 @@ const SpeechRecording: React.FC<SpeechRecordingProps> = () => {
   // Save message to backend for analysis
   const saveMessageToBackend = async (message: string) => {
     try {
+      console.log('💾 Speaking - Mesaj kaydetme başlatılıyor...', {
+        topic: selectedTopic?.title,
+        messageLength: message.length
+      });
+      
+      const token = localStorage.getItem('token');
+      console.log('🔑 Speaking - Token kontrolü:', token ? 'Token var' : 'Token yok');
+      
+      if (!token) {
+        console.log('❌ Speaking - Kullanıcı giriş yapmamış, mesaj kaydedilmiyor');
+        return;
+      }
+
       const response = await fetch('http://localhost:8000/api/speaking/save-message', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
           topicId: selectedTopic?.id || 'unknown',
@@ -225,18 +286,112 @@ const SpeechRecording: React.FC<SpeechRecordingProps> = () => {
         }),
       });
 
+      console.log('📥 Speaking - Backend yanıtı:', response.status, response.statusText);
+
       if (!response.ok) {
         throw new Error(`Backend kayıt hatası: ${response.status}`);
       }
 
       const data = await response.json();
-      console.log('Mesaj başarıyla kaydedildi:', data);
+      console.log('✅ Speaking - Mesaj başarıyla kaydedildi:', data);
+      
+      // Session'a puan ekle (hemen kaydetme, session bitince kaydedeceğiz)
+      if (data.analysis && data.analysis.overallScore) {
+        const newScore = data.analysis.overallScore;
+        console.log(`📊 Session puanı ekleniyor: ${newScore}/100`);
+        
+        setSessionScores(prev => {
+          const updated = [...prev, newScore];
+          console.log(`📊 Session scores güncellendi:`, updated);
+          return updated;
+        });
+        
+        setSessionMessages(prev => {
+          const updated = [...prev, message];
+          console.log(`📝 Session messages güncellendi:`, updated.length, 'mesaj');
+          return updated;
+        });
+        
+        console.log(`✅ Session puanı eklendi: ${newScore}/100`);
+        console.log('⏳ Session devam ediyor, puan henüz kaydedilmiyor...');
+      } else {
+        console.log('❌ Analysis veya overallScore bulunamadı:', data);
+      }
       
     } catch (error) {
-      console.error('Mesaj kaydedilemedi:', error);
+      console.error('❌ Speaking - Mesaj kaydedilemedi:', error);
       throw error;
     }
   };
+
+  const saveSessionScore = async () => {
+    console.log('🔍 saveSessionScore çağrıldı', {
+      sessionScores: sessionScores,
+      sessionScoresLength: sessionScores.length,
+      selectedTopic: selectedTopic?.title
+    });
+    
+    if (sessionScores.length === 0) {
+      console.log('📊 Session puanı yok, kaydetme atlanıyor');
+      return;
+    }
+
+    try {
+      // Session ortalaması hesapla
+      const averageScore = sessionScores.reduce((sum, score) => sum + score, 0) / sessionScores.length;
+      const bandScore = averageScore / 10; // 0-100'den 0-9'a çevir
+      
+      console.log('💾 Speaking Session puanı kaydediliyor...', {
+        mesajSayısı: sessionScores.length,
+        ortalamaPuan: averageScore,
+        bandScore: bandScore,
+        topic: selectedTopic?.title,
+        sessionScores: sessionScores
+      });
+      
+      const token = localStorage.getItem('token');
+      if (!token) {
+        console.log('❌ Speaking - Kullanıcı giriş yapmamış, puan kaydedilmiyor');
+        return;
+      }
+
+      const response = await fetch('http://localhost:8000/api/save-score', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          module: 'speaking',
+          band_score: bandScore,
+          raw_score: Math.round(averageScore),
+          total_questions: sessionScores.length,
+          topic: selectedTopic?.title || 'Unknown Topic',
+          difficulty: 'intermediate',
+          accent: null,
+          detailed_results: {
+            session_scores: sessionScores,
+            session_messages: sessionMessages,
+            average_score: averageScore,
+            topicId: selectedTopic?.id
+          }
+        }),
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        console.log('✅ Speaking Session puanı başarıyla kaydedildi:', result);
+      } else {
+        const errorText = await response.text();
+        console.error('❌ Speaking Session puan kaydetme hatası:', errorText);
+      }
+    } catch (error) {
+      console.error('❌ Speaking Session puan kaydetme hatası:', error);
+    }
+  };
+
+  // Bu fonksiyon artık kullanılmıyor - session bazlı puanlama kullanıyoruz
+  // const saveSpeakingScoreToDatabase = async (scoreData: any) => { ... }
 
   const processRecording = async () => {
     setIsProcessing(true);
@@ -745,6 +900,23 @@ const SpeechRecording: React.FC<SpeechRecordingProps> = () => {
             )}
           </button>
         )}
+        {/* Session Info */}
+        {sessionStarted && (
+          <div style={{
+            padding: '8px 16px',
+            backgroundColor: '#e3f2fd',
+            borderBottom: '1px solid #bbdefb',
+            fontSize: '12px',
+            color: '#1976d2',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center'
+          }}>
+            <span>🎤 Speaking Session: {selectedTopic?.title}</span>
+            <span>Mesajlar: {sessionScores.length} | Ortalama: {sessionScores.length > 0 ? Math.round(sessionScores.reduce((sum, score) => sum + score, 0) / sessionScores.length) : 0}/100</span>
+          </div>
+        )}
+
         {conversationHistory.map((message, index) => (
           <div key={message.id} style={{
             display: 'flex',

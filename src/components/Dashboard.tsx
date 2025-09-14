@@ -44,7 +44,77 @@ const Dashboard: React.FC = () => {
 
   const fetchUserStats = async () => {
     try {
-      // Varsayılan değerler
+      const token = localStorage.getItem('token');
+      console.log('🔍 Dashboard - localStorage token:', token ? 'Token var' : 'Token yok');
+      console.log('🔍 Dashboard - localStorage keys:', Object.keys(localStorage));
+      
+      if (!token) {
+        // Kullanıcı giriş yapmamış
+        const defaultStats: UserStats = {
+          listening: { totalTests: 0, averageScore: 0, bestScore: 0 },
+          reading: { totalTests: 0, averageScore: 0, bestScore: 0 },
+          writing: { totalEssays: 0, averageScore: 0, bestScore: 0 },
+          speaking: { totalSessions: 0, averageScore: 0, bestScore: 0 },
+          overall: { totalTests: 0, ieltsBandScore: 0, improvementRate: 0, streak: 0 }
+        };
+        setUserStats(defaultStats);
+        setIsLoading(false);
+        return;
+      }
+
+      // Backend'den gerçek verileri çek
+      console.log('📊 Dashboard - İstatistik isteği gönderiliyor...');
+      console.log('🔑 Dashboard - Token:', token ? `${token.substring(0, 20)}...` : 'Token yok');
+      
+      const response = await fetch('http://localhost:8000/api/user-stats', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      console.log('📥 Dashboard - Backend yanıtı:', response.status, response.statusText);
+
+      if (response.ok) {
+        const data = await response.json();
+        console.log('✅ Dashboard - İstatistik verileri alındı:', data);
+        
+        // Backend'den gelen veriyi frontend formatına çevir
+        const stats: UserStats = {
+          listening: {
+            totalTests: data.listening.test_count,
+            averageScore: data.listening.average,
+            bestScore: data.listening.best
+          },
+          reading: {
+            totalTests: data.reading.test_count,
+            averageScore: data.reading.average,
+            bestScore: data.reading.best
+          },
+          writing: {
+            totalEssays: data.writing.test_count,
+            averageScore: data.writing.average,
+            bestScore: data.writing.best
+          },
+          speaking: {
+            totalSessions: data.speaking.test_count,
+            averageScore: data.speaking.average,
+            bestScore: data.speaking.best
+          },
+          overall: {
+            totalTests: data.overall.total_tests,
+            ieltsBandScore: data.overall.estimated_ielts,
+            improvementRate: 0, // TODO: Hesaplanacak
+            streak: 0 // TODO: Hesaplanacak
+          }
+        };
+        
+        setUserStats(stats);
+      } else {
+        throw new Error('İstatistik yükleme hatası');
+      }
+    } catch (error) {
+      console.error('İstatistik yükleme hatası:', error);
+      // Hata durumunda varsayılan değerler
       const defaultStats: UserStats = {
         listening: { totalTests: 0, averageScore: 0, bestScore: 0 },
         reading: { totalTests: 0, averageScore: 0, bestScore: 0 },
@@ -52,38 +122,8 @@ const Dashboard: React.FC = () => {
         speaking: { totalSessions: 0, averageScore: 0, bestScore: 0 },
         overall: { totalTests: 0, ieltsBandScore: 0, improvementRate: 0, streak: 0 }
       };
-
-      // Speaking verilerini API'den çek
-      try {
-        const speakingResponse = await fetch('http://localhost:8000/api/speaking/user-messages', {
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token') || ''}`
-          }
-        });
-        
-        if (speakingResponse.ok) {
-          const speakingMessages = await speakingResponse.json();
-          
-          if (speakingMessages && speakingMessages.length > 0) {
-            const scores = speakingMessages.map((msg: any) => msg.analysis.overallScore);
-            const averageScore = scores.reduce((sum: number, score: number) => sum + score, 0) / scores.length;
-            const bestScore = Math.max(...scores);
-            
-            defaultStats.speaking = {
-              totalSessions: speakingMessages.length,
-              averageScore: averageScore,
-              bestScore: bestScore
-            };
-          }
-        }
-      } catch (speakingError) {
-        console.error('Speaking verileri yüklenirken hata:', speakingError);
-      }
-      
       setUserStats(defaultStats);
-      setIsLoading(false);
-    } catch (error) {
-      console.error('Error fetching user stats:', error);
+    } finally {
       setIsLoading(false);
     }
   };
