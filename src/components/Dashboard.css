@@ -58,6 +58,31 @@
   font-weight: 500;
 }
 
+.refresh-btn {
+  background: #28a745;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.refresh-btn:hover:not(:disabled) {
+  background: #218838;
+  transform: translateY(-1px);
+}
+
+.refresh-btn:disabled {
+  background: #6c757d;
+  cursor: not-allowed;
+  transform: none;
+}
+
 .logout-btn {
   background: #ff4757;
   color: white;
@@ -78,6 +103,21 @@
   color: white;
   font-size: 1.2rem;
   margin-top: 100px;
+}
+
+.last-updated {
+  text-align: center;
+  margin-bottom: 20px;
+  background: rgba(255, 255, 255, 0.9);
+  padding: 10px 20px;
+  border-radius: 10px;
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+}
+
+.last-updated span {
+  color: #666;
+  font-size: 0.9rem;
+  font-weight: 500;
 }
 
 .stats-overview {

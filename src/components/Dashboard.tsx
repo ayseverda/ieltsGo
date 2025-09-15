@@ -36,6 +36,7 @@ const Dashboard: React.FC = () => {
   const [userStats, setUserStats] = useState<UserStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [user, setUser] = useState<any>(null);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
   useEffect(() => {
     fetchUserStats();
@@ -66,11 +67,7 @@ const Dashboard: React.FC = () => {
       console.log('📊 Dashboard - İstatistik isteği gönderiliyor...');
       console.log('🔑 Dashboard - Token:', token ? `${token.substring(0, 20)}...` : 'Token yok');
       
-      const response = await fetch('http://localhost:8000/api/user-stats', {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
+       const response = await auth.secureFetch('http://localhost:8000/api/user-stats');
 
       console.log('📥 Dashboard - Backend yanıtı:', response.status, response.statusText);
 
@@ -109,6 +106,8 @@ const Dashboard: React.FC = () => {
         };
         
         setUserStats(stats);
+        setLastUpdated(new Date());
+        console.log('✅ Dashboard verileri güncellendi:', new Date().toLocaleTimeString());
       } else {
         throw new Error('İstatistik yükleme hatası');
       }
@@ -159,9 +158,18 @@ const Dashboard: React.FC = () => {
         </div>
         <div className="user-info">
           <span>Hoş geldin, {user?.name || 'Öğrenci'}!</span>
+          <button className="refresh-btn" onClick={fetchUserStats} disabled={isLoading}>
+            {isLoading ? '🔄 Yükleniyor...' : '🔄 Yenile'}
+          </button>
           <button className="logout-btn" onClick={handleLogout}>Çıkış Yap</button>
         </div>
       </div>
+
+      {lastUpdated && (
+        <div className="last-updated">
+          <span>📅 Son güncelleme: {lastUpdated.toLocaleTimeString('tr-TR')}</span>
+        </div>
+      )}
 
       <div className="stats-overview">
         <div className="stat-card overall">

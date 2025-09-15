@@ -136,4 +136,67 @@ export const auth = {
   isAuthenticated(): boolean {
     return authStorage.isAuthenticated();
   },
+
+  // Token doğrulama fonksiyonu - 401 hatası alırsa otomatik logout
+  async validateToken(): Promise<boolean> {
+    const token = authStorage.getToken();
+    if (!token) {
+      console.log('🔐 Token bulunamadı');
+      return false;
+    }
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/me`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      if (response.status === 401) {
+        console.log('🔐 Token geçersiz, otomatik logout yapılıyor...');
+        this.logout();
+        return false;
+      }
+
+      if (!response.ok) {
+        console.log('🔐 Backend hatası, token geçerli kabul ediliyor:', response.status);
+        // Backend hatası varsa token'ı geçerli kabul et (login döngüsünü önlemek için)
+        return true;
+      }
+
+      return true;
+    } catch (error) {
+      console.error('Token doğrulama hatası:', error);
+      // Network hatası varsa token'ı geçerli kabul et
+      console.log('🔐 Network hatası, token geçerli kabul ediliyor');
+      return true;
+    }
+  },
+
+  // API istekleri için güvenli fetch wrapper
+  async secureFetch(url: string, options: RequestInit = {}): Promise<Response> {
+    const token = authStorage.getToken();
+    
+    if (!token) {
+      this.logout();
+      throw new Error('Token bulunamadı');
+    }
+
+    const response = await fetch(url, {
+      ...options,
+      headers: {
+        ...options.headers,
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+
+    if (response.status === 401) {
+      console.log('🔐 API isteğinde 401 hatası, otomatik logout yapılıyor...');
+      this.logout();
+      window.location.href = '/login';
+      throw new Error('Token geçersiz');
+    }
+
+    return response;
+  },
 };

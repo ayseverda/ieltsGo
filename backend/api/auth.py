@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Header
 from pydantic import BaseModel
 from datetime import datetime, timedelta
 from typing import Optional
@@ -172,11 +172,16 @@ async def login_user(login_data: UserLogin):
         raise HTTPException(status_code=500, detail=f"Login failed: {str(e)}")
 
 @router.get("/me", response_model=UserResponse)
-async def get_current_user(token: str = Depends(lambda: None)):
+async def get_current_user(authorization: str = Header(None)):
     """Get current user info"""
     try:
-        if not token:
-            raise HTTPException(status_code=401, detail="No token provided")
+        if not authorization:
+            raise HTTPException(status_code=401, detail="Authorization header required")
+        
+        if not authorization.startswith("Bearer "):
+            raise HTTPException(status_code=401, detail="Authorization header must start with 'Bearer '")
+        
+        token = authorization.split(" ")[1]
         
         # Verify token
         payload = verify_token(token)

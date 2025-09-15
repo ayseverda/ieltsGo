@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowLeft, Headphones, Play, Pause, Volume2, Settings, Download, Clock } from 'lucide-react';
+import { auth } from '../services/auth';
 
 interface ListeningSection {
   id: number;
@@ -260,11 +261,10 @@ const ListeningModule: React.FC = () => {
         data: scoreData
       });
 
-      const response = await fetch('http://localhost:8000/api/save-score', {
+      const response = await auth.secureFetch('http://localhost:8000/api/save-score', {
         method: 'POST',
         headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify(scoreData),
       });

@@ -25,6 +25,7 @@ const GeneralTestPage: React.FC = () => {
   const [readingError, setReadingError] = useState<string>('');
   const [readingAnswers, setReadingAnswers] = useState<Record<string, string>>({});
   const [readingResult, setReadingResult] = useState<any | null>(null);
+  const [currentReadingPassage, setCurrentReadingPassage] = useState<number>(0);
   const steps = useMemo(() => [
     { 
       name: 'Listening', 
@@ -137,40 +138,54 @@ const GeneralTestPage: React.FC = () => {
   // ----- Reading: Test verilerini yükle -----
   useEffect(() => {
     if (!(testStarted && steps[currentStep].name === 'Reading')) return;
-    const fetchTests = async () => {
+    
+    const initializeReadingTest = async () => {
       setReadingLoading(true);
       setReadingError('');
+      
       try {
-        const withTimeout = (url: string, ms: number) => {
-          const ctrl = new AbortController();
-          const id = setTimeout(() => ctrl.abort(), ms);
-          return fetch(url, { signal: ctrl.signal }).finally(() => clearTimeout(id));
-        };
-        let data: any | null = null;
-        try {
-          const r = await withTimeout('http://localhost:8001/tests', 1200);
-          if (r.ok) data = await r.json();
-        } catch {}
-        if (!data) {
-          const fallbackUrl = `${process.env.PUBLIC_URL || ''}/reading/tests.json`;
-          const r2 = await fetch(fallbackUrl);
-          const txt = await r2.text();
-          // HTML dönerse (örn. index.html), JSON parse etmeyelim
-          if (txt.trim().startsWith('<')) {
-            throw new Error('Yerel tests.json yerine HTML döndü. Yol hatası: ' + fallbackUrl);
-          }
-          data = JSON.parse(txt);
+        // Otomatik olarak AI ile test üret
+        console.log('🔄 Reading testi otomatik üretiliyor...');
+        
+        const response = await fetch('http://localhost:8001/generate-ielts-academic', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            topic: 'Academic', 
+            difficulty: 'Medium',
+            format: 'ielts_academic',
+            passages: 3,
+            total_questions: 40
+          })
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          console.log('✅ Reading testi başarıyla üretildi:', data.id);
+          
+          setReadingTest(data);
+          setReadingSelectedId(data.id);
+          setCurrentReadingPassage(0);
+          
+          // Test listesine ekle
+          setReadingTests(prev => {
+            const exists = prev.find(p => p.id === data.id);
+            return exists ? prev : [data, ...prev];
+          });
+        } else {
+          const err = await response.text();
+          console.error('❌ Reading test üretimi başarısız:', err);
+          setReadingError(err || 'AI test üretimi başarısız.');
         }
-        const list = data?.tests || [];
-        setReadingTests(list);
-        if (list.length > 0) setReadingSelectedId(list[0].id);
       } catch (e: any) {
-        setReadingError(e?.message || 'Reading testleri yüklenemedi');
+        console.error('❌ Reading test üretim hatası:', e);
+        setReadingError(e?.message || 'AI test üretim hatası');
       } finally {
         setReadingLoading(false);
       }
     };
-    fetchTests();
+    
+    initializeReadingTest();
   }, [testStarted, currentStep, steps]);
 
   // Seçili testi getir
@@ -207,36 +222,59 @@ const GeneralTestPage: React.FC = () => {
     if (!readingTest) return;
     try {
       setReadingLoading(true);
+      console.log('🔍 Değerlendirme başlıyor...');
+      console.log('📋 Test ID:', readingSelectedId);
+      console.log('📝 Cevaplar:', readingAnswers);
+      
       const res = await fetch('http://localhost:8001/submit', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ test_id: readingSelectedId, answers: readingAnswers })
+        body: JSON.stringify({ 
+          test_id: readingSelectedId, 
+          answers: readingAnswers,
+          test_data: readingTest  // Test verisini de gönder
+        })
       });
+      
+      console.log('📊 Response status:', res.status);
+      
       if (res.ok) {
         const data = await res.json();
+        console.log('✅ Değerlendirme başarılı:', data);
         setReadingResult(data);
       } else {
-        setReadingError('Değerlendirme başarısız oldu');
+        const errorText = await res.text();
+        console.error('❌ Değerlendirme hatası:', res.status, errorText);
+        setReadingError(`Değerlendirme başarısız oldu: ${res.status} - ${errorText}`);
       }
     } catch (e: any) {
+      console.error('❌ Değerlendirme exception:', e);
       setReadingError(e?.message || 'Değerlendirme hatası');
     } finally {
       setReadingLoading(false);
     }
   };
 
-  // Reading: AI ile test üret
+  // Reading: AI ile IELTS Academic test üret
   const generateAIReadingTest = async () => {
     try {
       setReadingLoading(true);
       setReadingError('');
       setReadingResult(null);
       setReadingAnswers({});
+      setCurrentReadingPassage(0); // İlk sayfaya dön
 
-      const response = await fetch('http://localhost:8001/generate-ai', {
+      // IELTS Academic Reading formatında test üret
+      const response = await fetch('http://localhost:8001/generate-ielts-academic', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ topic: 'General', difficulty: 'Medium' })
+        body: JSON.stringify({ 
+          topic: 'Academic', 
+          difficulty: 'Medium',
+          format: 'ielts_academic',
+          passages: 3,
+          total_questions: 40
+        })
       });
 
       if (response.ok) {
@@ -697,88 +735,588 @@ const GeneralTestPage: React.FC = () => {
             </div>
           ) : steps[currentStep].name === 'Reading' ? (
             <div className="reading-module">
-              {readingLoading && <p>Yükleniyor...</p>}
-              {readingError && <p style={{color:'#d33'}}>{readingError}</p>}
-              <div className="reading-controls" style={{display:'flex', gap:12, alignItems:'center', marginBottom:12}}>
-                {readingTests.length > 0 && (
-                  <label>
-                    Test Seç:
-                    <select value={readingSelectedId} onChange={(e)=>setReadingSelectedId(e.target.value)}>
-                      {readingTests.map(t => (
-                        <option key={t.id} value={t.id}>{t.source || t.id}</option>
-                      ))}
-                    </select>
-                  </label>
-                )}
-                <button className="btn btn-secondary" onClick={generateAIReadingTest} disabled={readingLoading}>
-                  AI ile Test Oluştur
-                </button>
+              {/* IELTS Academic Reading Instructions */}
+              <div className="ielts-instructions">
+                <h3>📖 IELTS Academic Reading Test</h3>
+                <p>Bu bölümde 3 farklı akademik metinden oluşan okuma testi yapacaksınız. Her metin farklı bir konu ve zorluk seviyesine sahiptir.</p>
+                
+                <div className="reading-overview">
+                  <h4>Metinler ve Sorular:</h4>
+                  <div className="passage-preview">
+                    <div className="passage-item">
+                      <strong>Metin 1:</strong> Genel akademik konu (13 soru)
+                    </div>
+                    <div className="passage-item">
+                      <strong>Metin 2:</strong> İş dünyası/Eğitim konusu (13 soru)
+                    </div>
+                    <div className="passage-item">
+                      <strong>Metin 3:</strong> Bilimsel/Akademik konu (14 soru)
+                    </div>
+                  </div>
+                </div>
+
+                <div className="question-types">
+                  <h4>Soru Tipleri:</h4>
+                  <div className="types-grid">
+                    <div className="type-item">📝 Çoktan Seçmeli</div>
+                    <div className="type-item">✏️ Boşluk Doldurma</div>
+                    <div className="type-item">🔗 Başlık Eşleştirme</div>
+                    <div className="type-item">📋 Bilgi Eşleştirme</div>
+                    <div className="type-item">✅ Doğru/Yanlış/Değil</div>
+                    <div className="type-item">🔢 Sıralama</div>
+                    <div className="type-item">💬 Kısa Cevaplı</div>
+                  </div>
+                </div>
+
+                <div className="section-controls">
+                  {readingLoading ? (
+                    <div style={{textAlign: 'center', padding: '20px'}}>
+                      <div style={{fontSize: '18px', color: '#8B5CF6', marginBottom: '10px'}}>
+                        🔄 IELTS Academic Reading Testi Oluşturuluyor...
+                      </div>
+                      <div style={{fontSize: '14px', color: '#666'}}>
+                        3 akademik metin ve 40 soru hazırlanıyor...
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{textAlign: 'center', padding: '20px'}}>
+                      <div style={{fontSize: '18px', color: '#28a745', marginBottom: '10px'}}>
+                        ✅ Test Hazır!
+                      </div>
+                      <div style={{fontSize: '14px', color: '#666'}}>
+                        Aşağıdaki metinleri okuyup soruları cevaplayabilirsiniz.
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
+
+              {readingLoading && (
+                <div className="loading-message">
+                  <p>🔄 IELTS Academic Reading testi oluşturuluyor...</p>
+                  <p>3 akademik metin ve 40 soru hazırlanıyor...</p>
+                </div>
+              )}
+
+              {readingError && (
+                <div className="error-message" style={{color:'#d33', background:'#ffe6e6', padding:'10px', borderRadius:'5px', margin:'10px 0'}}>
+                  ❌ {readingError}
+                </div>
+              )}
 
               {readingTest && (
                 <div className="reading-content">
-                  <div className="passages">
-                    {readingTest.passages?.map((p: any) => (
-                      <div key={p.id} className="passage" style={{marginBottom:16}}>
-                        <h4>{p.title}</h4>
-                        <p>{p.text}</p>
-                      </div>
+                  {/* Sayfa Navigasyonu */}
+                  <div className="passage-navigation" style={{display: 'flex', justifyContent: 'center', gap: '10px', marginBottom: '20px'}}>
+                    {readingTest.passages?.map((_: any, index: number) => (
+                      <button
+                        key={index}
+                        className={`passage-nav-btn ${currentReadingPassage === index ? 'active' : ''}`}
+                        onClick={() => setCurrentReadingPassage(index)}
+                        style={{
+                          padding: '8px 16px',
+                          border: '2px solid #8B5CF6',
+                          borderRadius: '20px',
+                          background: currentReadingPassage === index ? '#8B5CF6' : 'transparent',
+                          color: currentReadingPassage === index ? 'white' : '#8B5CF6',
+                          cursor: 'pointer',
+                          fontSize: '14px',
+                          fontWeight: 'bold'
+                        }}
+                      >
+                        Metin {index + 1}
+                      </button>
                     ))}
                   </div>
-                  <div className="questions">
-                    {readingTest.questions?.map((q: any, idx: number) => (
-                      <div key={q.id} className="question-item" style={{marginBottom:12}}>
-                        <label>{idx + 1}. {q.prompt}</label>
-                        {q.type === 'MultipleChoice' || Array.isArray(q.options) ? (
+
+                  {/* Mevcut Metin ve Soruları */}
+                  {readingTest.passages && readingTest.passages[currentReadingPassage] && (
+                    <div className="current-passage-content">
+                      {/* Metin */}
+                      <div className="passage-section" style={{marginBottom: '30px', border: '2px solid #8B5CF6', padding: '25px', borderRadius: '12px', background: '#f8f9fa'}}>
+                        <div className="passage-header" style={{marginBottom: '20px', textAlign: 'center'}}>
+                          <h4 style={{color: '#8B5CF6', fontSize: '20px', margin: '0 0 10px 0'}}>
+                            Metin {currentReadingPassage + 1}: {readingTest.passages[currentReadingPassage].title}
+                          </h4>
+                          <span className="passage-info" style={{color: '#666', fontSize: '14px'}}>
+                            ~{readingTest.passages[currentReadingPassage].word_count || 800} kelime
+                          </span>
+                        </div>
+                        <div className="passage-text" style={{
+                          lineHeight: '1.8', 
+                          fontSize: '15px', 
+                          textAlign: 'justify',
+                          background: 'white',
+                          padding: '20px',
+                          borderRadius: '8px',
+                          border: '1px solid #e0e0e0'
+                        }}>
+                          {readingTest.passages[currentReadingPassage].text}
+                        </div>
+                      </div>
+
+                      {/* Bu Metne Ait Sorular */}
+                      <div className="questions-container">
+                        <h4 style={{color: '#8B5CF6', fontSize: '18px', marginBottom: '20px'}}>
+                          📝 Metin {currentReadingPassage + 1} Soruları
+                        </h4>
+                        <div className="questions-grid">
+                          {readingTest.questions
+                            ?.filter((q: any) => q.passage_id === readingTest.passages[currentReadingPassage].id)
+                            ?.map((question: any, idx: number) => {
+                              // Her metin için sorular kendi içinde 1, 2, 3... şeklinde
+                              const questionNumber = idx + 1;
+                              
+                              // Sonuç kontrolü - yanlış veya boş soruları işaretle
+                              const userAnswer = readingAnswers[question.id];
+                              const correctAnswer = question.correct_answer || question.answer;
+                              const isAnswered = userAnswer && userAnswer.trim() !== '';
+                              const isCorrect = isAnswered && userAnswer === correctAnswer;
+                              const showResult = readingResult !== null;
+                              
+                              return (
+                                <div key={question.id} className="question-section" style={{
+                                  marginBottom: '20px', 
+                                  border: showResult ? (isCorrect ? '2px solid #28a745' : '2px solid #dc3545') : '1px solid #e0e0e0', 
+                                  padding: '20px', 
+                                  borderRadius: '8px',
+                                  background: showResult ? (isCorrect ? '#f8fff8' : '#fff5f5') : 'white'
+                                }}>
+                                  <div className="question-header" style={{marginBottom: '15px'}}>
+                                    <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px'}}>
+                                      <span className="question-number" style={{
+                                        background: showResult ? (isCorrect ? '#28a745' : '#dc3545') : '#8B5CF6', 
+                                        color: 'white', 
+                                        padding: '4px 12px', 
+                                        borderRadius: '15px', 
+                                        fontSize: '14px',
+                                        fontWeight: 'bold'
+                                      }}>
+                                        Soru {questionNumber}
+                                      </span>
+                                      {showResult && (
+                                        <span style={{
+                                          background: isCorrect ? '#28a745' : '#dc3545',
+                                          color: 'white',
+                                          padding: '4px 8px',
+                                          borderRadius: '12px',
+                                          fontSize: '12px',
+                                          fontWeight: 'bold'
+                                        }}>
+                                          {isCorrect ? '✅ Doğru' : (isAnswered ? '❌ Yanlış' : '⚠️ Boş')}
+                                        </span>
+                                      )}
+                                    </div>
+                                    <span className="question-type" style={{
+                                      color: '#666',
+                                      fontSize: '12px',
+                                      background: '#f0f0f0',
+                                      padding: '2px 8px',
+                                      borderRadius: '10px'
+                                    }}>
+                                      {question.type}
+                                    </span>
+                                  </div>
+                                  
+                                  {/* Yanlış/Boş sorular için doğru cevap gösterimi */}
+                                  {showResult && !isCorrect && (
+                                    <div style={{
+                                      background: '#fff3cd',
+                                      border: '1px solid #ffeaa7',
+                                      borderRadius: '6px',
+                                      padding: '10px',
+                                      marginBottom: '15px',
+                                      fontSize: '14px'
+                                    }}>
+                                      <strong style={{color: '#856404'}}>💡 Doğru Cevap:</strong>
+                                      <span style={{color: '#856404', marginLeft: '5px', fontWeight: 'bold'}}>
+                                        {(() => {
+                                          const answer = question.correct_answer || question.answer;
+                                          if (question.type === 'Multiple Choice' && typeof answer === 'number') {
+                                            // Index'i A,B,C,D formatına çevir
+                                            const letters = ['A', 'B', 'C', 'D'];
+                                            const letter = letters[answer] || answer;
+                                            const optionText = question.options && question.options[answer] ? question.options[answer] : '';
+                                            return `${letter}) ${optionText}`;
+                                          }
+                                          return answer || 'Cevap henüz belirlenmedi';
+                                        })()}
+                                      </span>
+                                      {userAnswer && (
+                                        <div style={{marginTop: '5px', fontSize: '13px'}}>
+                                          <strong style={{color: '#dc3545'}}>Sizin Cevabınız:</strong>
+                                          <span style={{color: '#dc3545', marginLeft: '5px'}}>
+                                            {(() => {
+                                              if (question.type === 'Multiple Choice' && typeof userAnswer === 'string' && /^\d+$/.test(userAnswer)) {
+                                                // Kullanıcının cevabı da index ise A,B,C,D formatına çevir
+                                                const index = parseInt(userAnswer);
+                                                const letters = ['A', 'B', 'C', 'D'];
+                                                const letter = letters[index] || userAnswer;
+                                                const optionText = question.options && question.options[index] ? question.options[index] : '';
+                                                return `${letter}) ${optionText}`;
+                                              }
+                                              return userAnswer;
+                                            })()}
+                                          </span>
+                                        </div>
+                                      )}
+                                      {!isAnswered && (
+                                        <div style={{marginTop: '5px', fontSize: '13px'}}>
+                                          <strong style={{color: '#dc3545'}}>Sizin Cevabınız:</strong>
+                                          <span style={{color: '#dc3545', marginLeft: '5px', fontStyle: 'italic'}}>
+                                            Boş bırakıldı
+                                          </span>
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
+                                  <div className="question-content">
+                                    <label className="question-prompt" style={{
+                                      display: 'block',
+                                      marginBottom: '15px',
+                                      fontSize: '15px',
+                                      fontWeight: '500',
+                                      lineHeight: '1.5'
+                                    }}>
+                                      {question.prompt}
+                                    </label>
+                                    
+                                    {question.type === 'Multiple Choice' || Array.isArray(question.options) ? (
                           <div className="question-options">
-                            {q.options?.map((opt: string, i: number) => (
-                              <label key={i} className="option-label">
+                                        {question.options?.map((option: string, i: number) => (
+                                          <label key={i} className="option-label" style={{
+                                            display: 'block',
+                                            marginBottom: '8px',
+                                            padding: '8px',
+                                            border: '1px solid #e0e0e0',
+                                            borderRadius: '5px',
+                                            cursor: 'pointer',
+                                            background: readingAnswers[question.id] === option ? '#e8f2ff' : 'transparent'
+                                          }}>
                                 <input
                                   type="radio"
-                                  name={`rq_${q.id}`}
-                                  value={opt}
-                                  checked={readingAnswers[q.id] === opt}
-                                  onChange={(e)=>setReadingAnswer(q.id, e.target.value)}
-                                />
-                                {opt}
+                                              name={`rq_${question.id}`}
+                                              value={option}
+                                              checked={readingAnswers[question.id] === option}
+                                              onChange={(e)=>setReadingAnswer(question.id, e.target.value)}
+                                              style={{marginRight: '8px'}}
+                                            />
+                                            {String.fromCharCode(65 + i)}) {option}
                               </label>
                             ))}
+                          </div>
+                                    ) : question.type === 'True/False/Not Given' ? (
+                                      <div className="question-options" style={{display: 'flex', gap: '15px'}}>
+                                        <label className="option-label" style={{
+                                          display: 'flex',
+                                          alignItems: 'center',
+                                          padding: '8px 16px',
+                                          border: '2px solid #8B5CF6',
+                                          borderRadius: '20px',
+                                          cursor: 'pointer',
+                                          background: readingAnswers[question.id] === 'True' ? '#8B5CF6' : 'transparent',
+                                          color: readingAnswers[question.id] === 'True' ? 'white' : '#8B5CF6'
+                                        }}>
+                                          <input
+                                            type="radio"
+                                            name={`rq_${question.id}`}
+                                            value="True"
+                                            checked={readingAnswers[question.id] === 'True'}
+                                            onChange={(e)=>setReadingAnswer(question.id, e.target.value)}
+                                            style={{marginRight: '8px'}}
+                                          />
+                                          True
+                                        </label>
+                                        <label className="option-label" style={{
+                                          display: 'flex',
+                                          alignItems: 'center',
+                                          padding: '8px 16px',
+                                          border: '2px solid #8B5CF6',
+                                          borderRadius: '20px',
+                                          cursor: 'pointer',
+                                          background: readingAnswers[question.id] === 'False' ? '#8B5CF6' : 'transparent',
+                                          color: readingAnswers[question.id] === 'False' ? 'white' : '#8B5CF6'
+                                        }}>
+                                          <input
+                                            type="radio"
+                                            name={`rq_${question.id}`}
+                                            value="False"
+                                            checked={readingAnswers[question.id] === 'False'}
+                                            onChange={(e)=>setReadingAnswer(question.id, e.target.value)}
+                                            style={{marginRight: '8px'}}
+                                          />
+                                          False
+                                        </label>
+                                        <label className="option-label" style={{
+                                          display: 'flex',
+                                          alignItems: 'center',
+                                          padding: '8px 16px',
+                                          border: '2px solid #8B5CF6',
+                                          borderRadius: '20px',
+                                          cursor: 'pointer',
+                                          background: readingAnswers[question.id] === 'Not Given' ? '#8B5CF6' : 'transparent',
+                                          color: readingAnswers[question.id] === 'Not Given' ? 'white' : '#8B5CF6'
+                                        }}>
+                                          <input
+                                            type="radio"
+                                            name={`rq_${question.id}`}
+                                            value="Not Given"
+                                            checked={readingAnswers[question.id] === 'Not Given'}
+                                            onChange={(e)=>setReadingAnswer(question.id, e.target.value)}
+                                            style={{marginRight: '8px'}}
+                                          />
+                                          Not Given
+                                        </label>
                           </div>
                         ) : (
                           <input
                             type="text"
                             className="answer-input"
                             placeholder="Cevabınızı yazın..."
-                            value={readingAnswers[q.id] || ''}
-                            onChange={(e)=>setReadingAnswer(q.id, e.target.value)}
+                                        value={readingAnswers[question.id] || ''}
+                                        onChange={(e)=>setReadingAnswer(question.id, e.target.value)}
+                                        style={{
+                                          width: '100%', 
+                                          padding: '12px', 
+                                          border: '2px solid #e0e0e0', 
+                                          borderRadius: '8px',
+                                          fontSize: '15px',
+                                          outline: 'none',
+                                          transition: 'border-color 0.3s'
+                                        }}
+                                        onFocus={(e) => e.target.style.borderColor = '#8B5CF6'}
+                                        onBlur={(e) => e.target.style.borderColor = '#e0e0e0'}
                           />
                         )}
                       </div>
-                    ))}
+                                </div>
+                              );
+                            })}
+                        </div>
                   </div>
 
-                  <div className="reading-actions" style={{display:'flex', gap:12, marginTop:12}}>
-                    <button className="btn btn-primary" onClick={submitReading} disabled={readingLoading}>
-                      Cevapları Gönder
+                      {/* Metin Navigasyon Butonları */}
+                      <div className="passage-navigation-buttons" style={{
+                        display: 'flex', 
+                        justifyContent: 'space-between', 
+                        marginTop: '30px',
+                        padding: '20px 0'
+                      }}>
+                        <button 
+                          className="btn btn-secondary"
+                          onClick={() => setCurrentReadingPassage(Math.max(0, currentReadingPassage - 1))}
+                          disabled={currentReadingPassage === 0}
+                          style={{
+                            padding: '12px 24px',
+                            fontSize: '16px',
+                            opacity: currentReadingPassage === 0 ? 0.5 : 1,
+                            cursor: currentReadingPassage === 0 ? 'not-allowed' : 'pointer'
+                          }}
+                        >
+                          ← Önceki Metin
+                        </button>
+                        
+                        <div className="passage-info" style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '20px',
+                          fontSize: '14px',
+                          color: '#666'
+                        }}>
+                          <span>Metin {currentReadingPassage + 1} / {readingTest.passages.length}</span>
+                          <span>
+                            {readingTest.questions?.filter((q: any) => q.passage_id === readingTest.passages[currentReadingPassage].id).length} soru
+                          </span>
+                        </div>
+                        
+                        <button 
+                          className="btn btn-primary"
+                          onClick={() => setCurrentReadingPassage(Math.min(readingTest.passages.length - 1, currentReadingPassage + 1))}
+                          disabled={currentReadingPassage === readingTest.passages.length - 1}
+                          style={{
+                            background: '#8B5CF6',
+                            color: 'white',
+                            padding: '12px 24px',
+                            fontSize: '16px',
+                            opacity: currentReadingPassage === readingTest.passages.length - 1 ? 0.5 : 1,
+                            cursor: currentReadingPassage === readingTest.passages.length - 1 ? 'not-allowed' : 'pointer'
+                          }}
+                        >
+                          Sonraki Metin →
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Test Tamamlama Butonu */}
+                  {currentReadingPassage === readingTest.passages.length - 1 && (
+                    <div className="reading-actions" style={{
+                      display:'flex', 
+                      gap:12, 
+                      marginTop:30, 
+                      justifyContent: 'center',
+                      padding: '20px',
+                      background: '#f8f9fa',
+                      borderRadius: '10px',
+                      border: '2px solid #8B5CF6'
+                    }}>
+                      <button 
+                        className="btn btn-primary" 
+                        onClick={submitReading} 
+                        disabled={readingLoading}
+                        style={{
+                          background: '#8B5CF6', 
+                          color: 'white', 
+                          padding: '15px 30px', 
+                          fontSize: '18px',
+                          fontWeight: 'bold',
+                          borderRadius: '25px'
+                        }}
+                      >
+                        {readingLoading ? '🔄 Değerlendiriliyor...' : '📊 Testi Tamamla ve Değerlendir'}
                     </button>
                     {readingResult && (
-                      <button className="btn btn-secondary" onClick={() => { setReadingResult(null); setReadingAnswers({}); }}>
-                        Yeniden Başla
+                        <button 
+                          className="btn btn-secondary" 
+                          onClick={() => { 
+                            setReadingResult(null); 
+                            setReadingAnswers({}); 
+                            setCurrentReadingPassage(0);
+                          }}
+                          style={{
+                            padding: '15px 30px', 
+                            fontSize: '18px',
+                            borderRadius: '25px'
+                          }}
+                        >
+                          🔄 Yeniden Başla
                       </button>
                     )}
                   </div>
+                  )}
 
                   {readingResult && (
-                    <div className="reading-result" style={{marginTop:16}}>
-                      <h4>Sonuç</h4>
-                      <p>Doğru (ölçekli): {readingResult?.scaled?.correct} / {readingResult?.scaled?.total}</p>
-                      <p>Tahmini Band: {readingResult?.band_estimate}</p>
+                    <div className="reading-result" style={{
+                      marginTop:30, 
+                      background: '#f8f9fa', 
+                      padding: '25px', 
+                      borderRadius: '12px', 
+                      border: '2px solid #8B5CF6'
+                    }}>
+                      <h4 style={{color: '#8B5CF6', fontSize: '20px', marginBottom: '20px'}}>📊 Test Sonuçları</h4>
+                      
+                      {/* Ana İstatistikler */}
+                      {(() => {
+                        // Boş soruları say
+                        const blankCount = readingTest?.questions?.filter((q: any) => {
+                          const userAnswer = readingAnswers[q.id];
+                          return !userAnswer || userAnswer.trim() === '';
+                        }).length || 0;
+                        
+                        const wrongCount = readingResult?.scaled?.total - readingResult?.scaled?.correct - blankCount;
+                        
+                        return (
+                          <div className="result-stats" style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '15px', marginBottom: '30px'}}>
+                            <div className="stat-item" style={{
+                              background: 'white',
+                              padding: '15px',
+                              borderRadius: '8px',
+                              border: '1px solid #e0e0e0',
+                              textAlign: 'center'
+                            }}>
+                              <strong style={{color: '#8B5CF6'}}>Doğru Cevaplar</strong><br/>
+                              <span style={{fontSize: '24px', fontWeight: 'bold', color: '#28a745'}}>
+                                {readingResult?.scaled?.correct}
+                              </span>
+                              <span style={{fontSize: '16px', color: '#666'}}> / {readingResult?.scaled?.total}</span>
+                            </div>
+                            <div className="stat-item" style={{
+                              background: 'white',
+                              padding: '15px',
+                              borderRadius: '8px',
+                              border: '1px solid #e0e0e0',
+                              textAlign: 'center'
+                            }}>
+                              <strong style={{color: '#8B5CF6'}}>Yanlış Cevaplar</strong><br/>
+                              <span style={{fontSize: '24px', fontWeight: 'bold', color: '#dc3545'}}>
+                                {wrongCount}
+                              </span>
+                              <span style={{fontSize: '16px', color: '#666'}}> / {readingResult?.scaled?.total}</span>
+                            </div>
+                            <div className="stat-item" style={{
+                              background: 'white',
+                              padding: '15px',
+                              borderRadius: '8px',
+                              border: '1px solid #e0e0e0',
+                              textAlign: 'center'
+                            }}>
+                              <strong style={{color: '#8B5CF6'}}>Boş Bırakılanlar</strong><br/>
+                              <span style={{fontSize: '24px', fontWeight: 'bold', color: '#ffc107'}}>
+                                {blankCount}
+                              </span>
+                              <span style={{fontSize: '16px', color: '#666'}}> / {readingResult?.scaled?.total}</span>
+                            </div>
+                          </div>
+                        );
+                      })()}
+                      
+                      {/* IELTS Band Score */}
+                      <div className="result-stats" style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '15px', marginBottom: '30px'}}>
+                        <div className="stat-item" style={{
+                          background: 'white',
+                          padding: '15px',
+                          borderRadius: '8px',
+                          border: '1px solid #e0e0e0',
+                          textAlign: 'center'
+                        }}>
+                          <strong style={{color: '#8B5CF6'}}>IELTS Band Skoru</strong><br/>
+                          <span style={{fontSize: '32px', fontWeight: 'bold', color: '#8B5CF6'}}>
+                            {readingResult?.band_estimate}
+                          </span>
+                          <span style={{fontSize: '14px', color: '#666', display: 'block'}}>Band Score</span>
+                        </div>
+                        <div className="stat-item" style={{
+                          background: 'white',
+                          padding: '15px',
+                          borderRadius: '8px',
+                          border: '1px solid #e0e0e0',
+                          textAlign: 'center'
+                        }}>
+                          <strong style={{color: '#8B5CF6'}}>Başarı Oranı</strong><br/>
+                          <span style={{fontSize: '24px', fontWeight: 'bold', color: '#8B5CF6'}}>
+                            {Math.round((readingResult?.scaled?.correct / readingResult?.scaled?.total) * 100)}%
+                          </span>
+                        </div>
+                      </div>
+
+
+                      {/* Geri Bildirim */}
                       {readingResult?.feedback && (
-                        <div>
-                          <h5>Geri Bildirim</h5>
-                          <ul>
-                            {(readingResult.feedback.strengths || []).map((s: string, i: number)=> <li key={`s-${i}`}>{s}</li>)}
+                        <div className="feedback-section" style={{
+                          background: 'white',
+                          padding: '20px',
+                          borderRadius: '8px',
+                          border: '1px solid #e0e0e0'
+                        }}>
+                          <h5 style={{color: '#8B5CF6', marginBottom: '15px'}}>💡 Geri Bildirim</h5>
+                          <div className="feedback-content" style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px'}}>
+                            <div className="strengths">
+                              <h6 style={{color: '#28a745', marginBottom: '10px'}}>✅ Güçlü Yönler:</h6>
+                              <ul style={{margin: 0, paddingLeft: '20px'}}>
+                                {(readingResult.feedback.strengths || []).map((s: string, i: number)=> 
+                                  <li key={`s-${i}`} style={{marginBottom: '5px'}}>{s}</li>
+                                )}
                           </ul>
+                        </div>
+                            <div className="improvements">
+                              <h6 style={{color: '#dc3545', marginBottom: '10px'}}>📈 Gelişim Alanları:</h6>
+                              <ul style={{margin: 0, paddingLeft: '20px'}}>
+                                {(readingResult.feedback.improvements || []).map((s: string, i: number)=> 
+                                  <li key={`i-${i}`} style={{marginBottom: '5px'}}>{s}</li>
+                                )}
+                              </ul>
+                            </div>
+                          </div>
                         </div>
                       )}
                     </div>

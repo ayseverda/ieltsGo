@@ -14,7 +14,7 @@ import base64
 import requests
 
 # API Keys - Direkt hardcode
-GEMINI_API_KEY = "AIzaSyCYeBOoGsW1du63HlKZ7W0AtknImO9Y1fo"  # Gemini API Key
+GEMINI_API_KEY = "AIzaSyALnio3_6NHRJ2wPrDqQyALBQKvvCkO7rw"  # Gemini API Key
 ELEVENLABS_API_KEY = "sk_7709ea5148eefd7f751933a1400a745f24d5ff4e8f643ade"  # ElevenLabs API Key - https://elevenlabs.io
 
 # Gemini API'yi yapılandır

@@ -158,7 +158,11 @@ async def get_user_stats(user_id: str = Depends(get_current_user)):
         # Modüllere göre grupla
         module_stats = {}
         for module in ["listening", "reading", "writing", "speaking"]:
-            module_scores = [s for s in scores if s["module"] == module]
+            # Reading için hem reading_practice hem reading_full'ü dahil et
+            if module == "reading":
+                module_scores = [s for s in scores if s["module"] in ["reading", "reading_practice", "reading_full"]]
+            else:
+                module_scores = [s for s in scores if s["module"] == module]
             
             if module_scores:
                 band_scores = [s["band_score"] for s in module_scores]

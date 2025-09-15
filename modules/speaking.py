@@ -38,7 +38,7 @@ app.add_middleware(
 )
 
 # Configuration
-GOOGLE_AI_API_KEY = os.getenv("GOOGLE_AI_API_KEY", "AIzaSyC2RqFc-JViNGLpEgggguo8WXvC8xCIbjw")
+GOOGLE_AI_API_KEY = os.getenv("GOOGLE_AI_API_KEY", "AIzaSyALnio3_6NHRJ2wPrDqQyALBQKvvCkO7rw")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY", "sk_2071d4401f89225130f1fb87ecb91fdec71daf184fc5cf77")
 ELEVENLABS_VOICE_ID = os.getenv("ELEVENLABS_VOICE_ID", "EXAVITQu4vr4xnSDxMaL")  # Default Bella voice
