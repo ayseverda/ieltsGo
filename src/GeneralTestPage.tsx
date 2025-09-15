@@ -16,6 +16,15 @@ const GeneralTestPage: React.FC = () => {
   const [isAudioPlaying, setIsAudioPlaying] = useState(false);
   const [showTranscript, setShowTranscript] = useState(false);
   const [answers, setAnswers] = useState<{[key: string]: string}>({});
+
+  // Reading modülü için durumlar
+  const [readingTests, setReadingTests] = useState<any[]>([]);
+  const [readingSelectedId, setReadingSelectedId] = useState<string>('');
+  const [readingTest, setReadingTest] = useState<any | null>(null);
+  const [readingLoading, setReadingLoading] = useState<boolean>(false);
+  const [readingError, setReadingError] = useState<string>('');
+  const [readingAnswers, setReadingAnswers] = useState<Record<string, string>>({});
+  const [readingResult, setReadingResult] = useState<any | null>(null);
   const steps = useMemo(() => [
     { 
       name: 'Listening', 
@@ -123,6 +132,130 @@ const GeneralTestPage: React.FC = () => {
     const usedTime = currentStepTime - timeLeft;
     const totalUsedTime = completedTime + usedTime;
     return (totalUsedTime / (totalDuration * 60)) * 100;
+  };
+
+  // ----- Reading: Test verilerini yükle -----
+  useEffect(() => {
+    if (!(testStarted && steps[currentStep].name === 'Reading')) return;
+    const fetchTests = async () => {
+      setReadingLoading(true);
+      setReadingError('');
+      try {
+        const withTimeout = (url: string, ms: number) => {
+          const ctrl = new AbortController();
+          const id = setTimeout(() => ctrl.abort(), ms);
+          return fetch(url, { signal: ctrl.signal }).finally(() => clearTimeout(id));
+        };
+        let data: any | null = null;
+        try {
+          const r = await withTimeout('http://localhost:8001/tests', 1200);
+          if (r.ok) data = await r.json();
+        } catch {}
+        if (!data) {
+          const fallbackUrl = `${process.env.PUBLIC_URL || ''}/reading/tests.json`;
+          const r2 = await fetch(fallbackUrl);
+          const txt = await r2.text();
+          // HTML dönerse (örn. index.html), JSON parse etmeyelim
+          if (txt.trim().startsWith('<')) {
+            throw new Error('Yerel tests.json yerine HTML döndü. Yol hatası: ' + fallbackUrl);
+          }
+          data = JSON.parse(txt);
+        }
+        const list = data?.tests || [];
+        setReadingTests(list);
+        if (list.length > 0) setReadingSelectedId(list[0].id);
+      } catch (e: any) {
+        setReadingError(e?.message || 'Reading testleri yüklenemedi');
+      } finally {
+        setReadingLoading(false);
+      }
+    };
+    fetchTests();
+  }, [testStarted, currentStep, steps]);
+
+  // Seçili testi getir
+  useEffect(() => {
+    if (!readingSelectedId) return;
+    const load = async () => {
+      try {
+        setReadingLoading(true);
+        setReadingResult(null);
+        setReadingAnswers({});
+        // Önce backend
+        let data: any | null = null;
+        try {
+          const r = await fetch(`http://localhost:8001/tests/${readingSelectedId}`);
+          if (r.ok) data = await r.json();
+        } catch {}
+        if (!data) {
+          const fallback = readingTests.find(t => t.id === readingSelectedId);
+          data = fallback || null;
+        }
+        setReadingTest(data);
+      } finally {
+        setReadingLoading(false);
+      }
+    };
+    load();
+  }, [readingSelectedId, readingTests]);
+
+  const setReadingAnswer = (qid: string, val: string) => {
+    setReadingAnswers(prev => ({ ...prev, [qid]: val }));
+  };
+
+  const submitReading = async () => {
+    if (!readingTest) return;
+    try {
+      setReadingLoading(true);
+      const res = await fetch('http://localhost:8001/submit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ test_id: readingSelectedId, answers: readingAnswers })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setReadingResult(data);
+      } else {
+        setReadingError('Değerlendirme başarısız oldu');
+      }
+    } catch (e: any) {
+      setReadingError(e?.message || 'Değerlendirme hatası');
+    } finally {
+      setReadingLoading(false);
+    }
+  };
+
+  // Reading: AI ile test üret
+  const generateAIReadingTest = async () => {
+    try {
+      setReadingLoading(true);
+      setReadingError('');
+      setReadingResult(null);
+      setReadingAnswers({});
+
+      const response = await fetch('http://localhost:8001/generate-ai', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ topic: 'General', difficulty: 'Medium' })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setReadingTests(prev => {
+          const exists = prev.find(p => p.id === data.id);
+          return exists ? prev : [data, ...prev];
+        });
+        setReadingSelectedId(data.id);
+        setReadingTest(data);
+      } else {
+        const err = await response.text();
+        setReadingError(err || 'AI test üretimi başarısız.');
+      }
+    } catch (e: any) {
+      setReadingError(e?.message || 'AI test üretim hatası');
+    } finally {
+      setReadingLoading(false);
+    }
   };
 
   // Listening test başlatma fonksiyonu
@@ -559,6 +692,97 @@ const GeneralTestPage: React.FC = () => {
                       Sonraki Bölüm →
                     </button>
                   </div>
+                </div>
+              )}
+            </div>
+          ) : steps[currentStep].name === 'Reading' ? (
+            <div className="reading-module">
+              {readingLoading && <p>Yükleniyor...</p>}
+              {readingError && <p style={{color:'#d33'}}>{readingError}</p>}
+              <div className="reading-controls" style={{display:'flex', gap:12, alignItems:'center', marginBottom:12}}>
+                {readingTests.length > 0 && (
+                  <label>
+                    Test Seç:
+                    <select value={readingSelectedId} onChange={(e)=>setReadingSelectedId(e.target.value)}>
+                      {readingTests.map(t => (
+                        <option key={t.id} value={t.id}>{t.source || t.id}</option>
+                      ))}
+                    </select>
+                  </label>
+                )}
+                <button className="btn btn-secondary" onClick={generateAIReadingTest} disabled={readingLoading}>
+                  AI ile Test Oluştur
+                </button>
+              </div>
+
+              {readingTest && (
+                <div className="reading-content">
+                  <div className="passages">
+                    {readingTest.passages?.map((p: any) => (
+                      <div key={p.id} className="passage" style={{marginBottom:16}}>
+                        <h4>{p.title}</h4>
+                        <p>{p.text}</p>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="questions">
+                    {readingTest.questions?.map((q: any, idx: number) => (
+                      <div key={q.id} className="question-item" style={{marginBottom:12}}>
+                        <label>{idx + 1}. {q.prompt}</label>
+                        {q.type === 'MultipleChoice' || Array.isArray(q.options) ? (
+                          <div className="question-options">
+                            {q.options?.map((opt: string, i: number) => (
+                              <label key={i} className="option-label">
+                                <input
+                                  type="radio"
+                                  name={`rq_${q.id}`}
+                                  value={opt}
+                                  checked={readingAnswers[q.id] === opt}
+                                  onChange={(e)=>setReadingAnswer(q.id, e.target.value)}
+                                />
+                                {opt}
+                              </label>
+                            ))}
+                          </div>
+                        ) : (
+                          <input
+                            type="text"
+                            className="answer-input"
+                            placeholder="Cevabınızı yazın..."
+                            value={readingAnswers[q.id] || ''}
+                            onChange={(e)=>setReadingAnswer(q.id, e.target.value)}
+                          />
+                        )}
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="reading-actions" style={{display:'flex', gap:12, marginTop:12}}>
+                    <button className="btn btn-primary" onClick={submitReading} disabled={readingLoading}>
+                      Cevapları Gönder
+                    </button>
+                    {readingResult && (
+                      <button className="btn btn-secondary" onClick={() => { setReadingResult(null); setReadingAnswers({}); }}>
+                        Yeniden Başla
+                      </button>
+                    )}
+                  </div>
+
+                  {readingResult && (
+                    <div className="reading-result" style={{marginTop:16}}>
+                      <h4>Sonuç</h4>
+                      <p>Doğru (ölçekli): {readingResult?.scaled?.correct} / {readingResult?.scaled?.total}</p>
+                      <p>Tahmini Band: {readingResult?.band_estimate}</p>
+                      {readingResult?.feedback && (
+                        <div>
+                          <h5>Geri Bildirim</h5>
+                          <ul>
+                            {(readingResult.feedback.strengths || []).map((s: string, i: number)=> <li key={`s-${i}`}>{s}</li>)}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
