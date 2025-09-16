@@ -26,6 +26,16 @@ const GeneralTestPage: React.FC = () => {
   const [readingAnswers, setReadingAnswers] = useState<Record<string, string>>({});
   const [readingResult, setReadingResult] = useState<any | null>(null);
   const [currentReadingPassage, setCurrentReadingPassage] = useState<number>(0);
+
+  // Writing modülü için durumlar
+  const [writingMode, setWritingMode] = useState<string>('academic'); // academic | general
+  const [writingTask, setWritingTask] = useState<string>('task1'); // task1 | task2
+  const [writingTopics, setWritingTopics] = useState<{[key: string]: string}>({});
+  const [writingEssays, setWritingEssays] = useState<{[key: string]: string}>({});
+  const [writingResults, setWritingResults] = useState<{[key: string]: any}>({});
+  const [writingLoading, setWritingLoading] = useState<boolean>(false);
+  const [writingError, setWritingError] = useState<string>('');
+  const [currentWritingTask, setCurrentWritingTask] = useState<number>(0);
   const steps = useMemo(() => [
     { 
       name: 'Listening', 
@@ -135,58 +145,119 @@ const GeneralTestPage: React.FC = () => {
     return (totalUsedTime / (totalDuration * 60)) * 100;
   };
 
-  // ----- Reading: Test verilerini yükle -----
-  useEffect(() => {
-    if (!(testStarted && steps[currentStep].name === 'Reading')) return;
-    
-    const initializeReadingTest = async () => {
-      setReadingLoading(true);
-      setReadingError('');
-      
-      try {
-        // Otomatik olarak AI ile test üret
-        console.log('🔄 Reading testi otomatik üretiliyor...');
-        
-        const response = await fetch('http://localhost:8001/generate-ielts-academic', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ 
-            topic: 'Academic', 
-            difficulty: 'Medium',
-            format: 'ielts_academic',
-            passages: 3,
-            total_questions: 40
-          })
-        });
+  // Writing konu üretme fonksiyonu
+  const generateWritingTopic = async (taskKey: string) => {
+    try {
+      setWritingLoading(true);
+      const response = await fetch(`http://localhost:8002/topic?mode=${writingMode}&task=${taskKey}`);
+      if (response.ok) {
+        const data = await response.json();
+        setWritingTopics(prev => ({ ...prev, [taskKey]: data.topic }));
+      } else {
+        setWritingError('Konu üretimi başarısız.');
+      }
+    } catch (e: any) {
+      setWritingError('Konu üretimi hatası: ' + e.message);
+    } finally {
+      setWritingLoading(false);
+    }
+  };
 
-        if (response.ok) {
-          const data = await response.json();
-          console.log('✅ Reading testi başarıyla üretildi:', data.id);
-          
-          setReadingTest(data);
-          setReadingSelectedId(data.id);
-          setCurrentReadingPassage(0);
-          
-          // Test listesine ekle
-          setReadingTests(prev => {
-            const exists = prev.find(p => p.id === data.id);
-            return exists ? prev : [data, ...prev];
-          });
-        } else {
-          const err = await response.text();
-          console.error('❌ Reading test üretimi başarısız:', err);
-          setReadingError(err || 'AI test üretimi başarısız.');
-        }
+  // Writing essay değerlendirme fonksiyonu
+  const evaluateWriting = async (taskKey: string) => {
+    const essay = writingEssays[taskKey];
+    if (!essay || essay.trim().length < 50) {
+      setWritingError('Lütfen en az 50 kelimelik bir essay yazın.');
+      return;
+    }
+
+    try {
+      setWritingLoading(true);
+      const response = await fetch('http://localhost:8002/evaluate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          essay: essay,
+          topic: writingTopics[taskKey],
+          mode: writingMode,
+          task: taskKey
+        })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setWritingResults(prev => ({ ...prev, [taskKey]: data }));
+      } else {
+        const errorData = await response.text();
+        setWritingError('Değerlendirme başarısız: ' + errorData);
+      }
+    } catch (e: any) {
+      setWritingError('Değerlendirme hatası: ' + e.message);
+    } finally {
+      setWritingLoading(false);
+    }
+  };
+
+  // Writing test başlatma fonksiyonu
+  const startWritingTest = async () => {
+    setWritingError('');
+    setWritingTopics({});
+    setWritingEssays({});
+    setWritingResults({});
+    setCurrentWritingTask(0);
+    
+    // Her iki task için de konu üret
+    await generateWritingTopic('task1');
+    await generateWritingTopic('task2');
+  };
+
+  // Reading test başlatma fonksiyonu
+  const startReadingTest = async () => {
+    setReadingLoading(true);
+    setReadingError('');
+    setReadingResult(null);
+    setReadingAnswers({});
+    setCurrentReadingPassage(0);
+    
+    try {
+      console.log('🔄 Reading testi üretiliyor...');
+      
+      const response = await fetch('http://localhost:8001/generate-ielts-academic', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          topic: 'Academic', 
+          difficulty: 'Medium',
+          format: 'ielts_academic',
+          passages: 3,
+          total_questions: 40
+        })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        console.log('✅ Reading testi başarıyla üretildi:', data.id);
+        
+        setReadingTest(data);
+        setReadingSelectedId(data.id);
+        
+        // Test listesine ekle
+        setReadingTests(prev => {
+          const exists = prev.find(p => p.id === data.id);
+          return exists ? prev : [data, ...prev];
+        });
+      } else {
+        const err = await response.text();
+        console.error('❌ Reading test üretimi başarısız:', err);
+        setReadingError(err || 'AI test üretimi başarısız.');
+      }
       } catch (e: any) {
-        console.error('❌ Reading test üretim hatası:', e);
-        setReadingError(e?.message || 'AI test üretim hatası');
+      console.error('❌ Reading test üretim hatası:', e);
+      setReadingError(e?.message || 'AI test üretim hatası');
       } finally {
         setReadingLoading(false);
       }
     };
-    
-    initializeReadingTest();
-  }, [testStarted, currentStep, steps]);
 
   // Seçili testi getir
   useEffect(() => {
@@ -639,7 +710,7 @@ const GeneralTestPage: React.FC = () => {
                     onClick={startListeningTest}
                   >
                     <Play className="icon" />
-                    Testi Başlat
+                    Litening Testini Başlat
                   </button>
                   <button className="btn btn-outline">
                     <CheckCircle className="icon" />
@@ -769,7 +840,23 @@ const GeneralTestPage: React.FC = () => {
                 </div>
 
                 <div className="section-controls">
-                  {readingLoading ? (
+                  {!readingTest && !readingLoading ? (
+                    <div style={{textAlign: 'center', padding: '20px'}}>
+                      <div style={{fontSize: '18px', color: '#8B5CF6', marginBottom: '15px'}}>
+                        📖 Reading Testine Hazır mısınız?
+                      </div>
+                      <div style={{fontSize: '14px', color: '#666', marginBottom: '20px'}}>
+                        3 akademik metin ve 40 soru ile IELTS Academic Reading testi yapın.
+                      </div>
+                      <button 
+                        className="btn btn-primary" 
+                        style={{ background: "#8B5CF6", color: "white", fontSize: "16px", padding: "12px 24px" }}
+                        onClick={startReadingTest}
+                      >
+                        🚀 Reading Testini Başlat
+                </button>
+                    </div>
+                  ) : readingLoading ? (
                     <div style={{textAlign: 'center', padding: '20px'}}>
                       <div style={{fontSize: '18px', color: '#8B5CF6', marginBottom: '10px'}}>
                         🔄 IELTS Academic Reading Testi Oluşturuluyor...
@@ -791,12 +878,6 @@ const GeneralTestPage: React.FC = () => {
                 </div>
               </div>
 
-              {readingLoading && (
-                <div className="loading-message">
-                  <p>🔄 IELTS Academic Reading testi oluşturuluyor...</p>
-                  <p>3 akademik metin ve 40 soru hazırlanıyor...</p>
-                </div>
-              )}
 
               {readingError && (
                 <div className="error-message" style={{color:'#d33', background:'#ffe6e6', padding:'10px', borderRadius:'5px', margin:'10px 0'}}>
@@ -1321,6 +1402,391 @@ const GeneralTestPage: React.FC = () => {
                       )}
                     </div>
                   )}
+                </div>
+              )}
+            </div>
+          ) : steps[currentStep].name === 'Writing' ? (
+            <div className="writing-module">
+              {/* IELTS Writing Instructions */}
+              <div className="ielts-instructions">
+                <h3>✍️ IELTS Writing Test</h3>
+                <p>Bu bölümde 2 farklı yazma görevi yapacaksınız. Academic ve General Training arasında seçim yapabilirsiniz.</p>
+                
+                <div className="writing-overview">
+                  <h4>Görevler:</h4>
+                  <div className="task-preview">
+                    <div className="task-item">
+                      <strong>Task 1:</strong> Academic (grafik/şema analizi) veya General (mektup yazma)
+                    </div>
+                    <div className="task-item">
+                      <strong>Task 2:</strong> Essay yazma (Academic/General)
+                    </div>
+                  </div>
+                </div>
+
+                <div className="writing-controls">
+                  <div className="mode-selection" style={{marginBottom: '20px'}}>
+                    <label style={{marginRight: '20px'}}>
+                      <input 
+                        type="radio" 
+                        name="writingMode" 
+                        value="academic" 
+                        checked={writingMode === 'academic'}
+                        onChange={(e) => setWritingMode(e.target.value)}
+                        style={{marginRight: '8px'}}
+                      />
+                      Academic
+                    </label>
+                    <label>
+                      <input 
+                        type="radio" 
+                        name="writingMode" 
+                        value="general" 
+                        checked={writingMode === 'general'}
+                        onChange={(e) => setWritingMode(e.target.value)}
+                        style={{marginRight: '8px'}}
+                      />
+                      General Training
+                    </label>
+                  </div>
+
+                  {Object.keys(writingTopics).length === 0 && !writingLoading ? (
+                    <div style={{textAlign: 'center', padding: '20px'}}>
+                      <div style={{fontSize: '18px', color: '#8B5CF6', marginBottom: '15px'}}>
+                        ✍️ Writing Testine Hazır mısınız?
+                      </div>
+                      <div style={{fontSize: '14px', color: '#666', marginBottom: '20px'}}>
+                        2 yazma görevi ile IELTS Writing testi yapın.
+                      </div>
+                      <button 
+                        className="btn btn-primary" 
+                        style={{ background: "#8B5CF6", color: "white", fontSize: "16px", padding: "12px 24px" }}
+                        onClick={startWritingTest}
+                      >
+                        🚀 Writing Testini Başlat
+                      </button>
+                    </div>
+                  ) : writingLoading ? (
+                    <div style={{textAlign: 'center', padding: '20px'}}>
+                      <div style={{fontSize: '18px', color: '#8B5CF6', marginBottom: '10px'}}>
+                        🔄 IELTS Writing konuları oluşturuluyor...
+                      </div>
+                      <div style={{fontSize: '14px', color: '#666'}}>
+                        Task 1 ve Task 2 konuları hazırlanıyor...
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{textAlign: 'center', padding: '20px'}}>
+                      <div style={{fontSize: '18px', color: '#28a745', marginBottom: '10px'}}>
+                        ✅ Test Hazır!
+                      </div>
+                      <div style={{fontSize: '14px', color: '#666'}}>
+                        Aşağıdaki görevleri tamamlayabilirsiniz.
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {writingError && (
+                <div className="error-message" style={{color:'#d33', background:'#ffe6e6', padding:'10px', borderRadius:'5px', margin:'10px 0'}}>
+                  ❌ {writingError}
+                </div>
+              )}
+
+              {Object.keys(writingTopics).length > 0 && (
+                <div className="writing-content">
+                  {/* Task Navigasyonu */}
+                  <div className="task-navigation" style={{display: 'flex', justifyContent: 'center', gap: '10px', marginBottom: '20px'}}>
+                    <button
+                      className={`task-nav-btn ${currentWritingTask === 0 ? 'active' : ''}`}
+                      onClick={() => setCurrentWritingTask(0)}
+                      style={{
+                        padding: '8px 16px',
+                        border: '2px solid #8B5CF6',
+                        borderRadius: '20px',
+                        background: currentWritingTask === 0 ? '#8B5CF6' : 'transparent',
+                        color: currentWritingTask === 0 ? 'white' : '#8B5CF6',
+                        cursor: 'pointer',
+                        fontSize: '14px',
+                        fontWeight: 'bold'
+                      }}
+                    >
+                      Task 1
+                    </button>
+                    <button
+                      className={`task-nav-btn ${currentWritingTask === 1 ? 'active' : ''}`}
+                      onClick={() => setCurrentWritingTask(1)}
+                      style={{
+                        padding: '8px 16px',
+                        border: '2px solid #8B5CF6',
+                        borderRadius: '20px',
+                        background: currentWritingTask === 1 ? '#8B5CF6' : 'transparent',
+                        color: currentWritingTask === 1 ? 'white' : '#8B5CF6',
+                        cursor: 'pointer',
+                        fontSize: '14px',
+                        fontWeight: 'bold'
+                      }}
+                    >
+                      Task 2
+                    </button>
+                  </div>
+
+                  {/* Mevcut Task */}
+                  {(() => {
+                    const taskKey = currentWritingTask === 0 ? 'task1' : 'task2';
+                    const topic = writingTopics[taskKey];
+                    const essay = writingEssays[taskKey] || '';
+                    const result = writingResults[taskKey];
+                    const isTask1 = currentWritingTask === 0;
+
+                    return (
+                      <div className="current-task-content">
+                        {/* Task Başlığı ve Konu */}
+                        <div className="task-section" style={{
+                          marginBottom: '30px', 
+                          border: '2px solid #8B5CF6', 
+                          padding: '25px', 
+                          borderRadius: '12px', 
+                          background: '#f8f9fa'
+                        }}>
+                          <div className="task-header" style={{marginBottom: '20px', textAlign: 'center'}}>
+                            <h4 style={{color: '#8B5CF6', fontSize: '20px', margin: '0 0 10px 0'}}>
+                              {isTask1 ? 'Task 1' : 'Task 2'}: {isTask1 ? 
+                                (writingMode === 'academic' ? 'Grafik/Şema Analizi' : 'Mektup Yazma') : 
+                                'Essay Yazma'
+                              }
+                            </h4>
+                            <span className="task-info" style={{color: '#666', fontSize: '14px'}}>
+                              {isTask1 ? 
+                                (writingMode === 'academic' ? '~150 kelime' : '~150 kelime') : 
+                                '~250 kelime'
+                              } • {writingMode === 'academic' ? 'Academic' : 'General Training'}
+                            </span>
+                          </div>
+                          
+                          {topic && (
+                            <div className="task-topic" style={{
+                              background: 'white',
+                              padding: '20px',
+                              borderRadius: '8px',
+                              border: '1px solid #e0e0e0',
+                              fontSize: '15px',
+                              lineHeight: '1.6'
+                            }}>
+                              <strong style={{color: '#8B5CF6'}}>Konu:</strong><br/>
+                              {topic}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Essay Yazma Alanı */}
+                        <div className="essay-section" style={{
+                          marginBottom: '30px',
+                          background: 'white',
+                          padding: '25px',
+                          borderRadius: '12px',
+                          border: '1px solid #e0e0e0'
+                        }}>
+                          <h5 style={{color: '#8B5CF6', marginBottom: '15px'}}>
+                            ✍️ Essay'inizi Yazın
+                          </h5>
+                          <textarea
+                            value={essay}
+                            onChange={(e) => setWritingEssays(prev => ({ ...prev, [taskKey]: e.target.value }))}
+                            placeholder={isTask1 ? 
+                              (writingMode === 'academic' ? 'Grafik veya şemayı analiz edin...' : 'Mektubunuzu yazın...') : 
+                              'Essay yazın...'
+                            }
+                            style={{
+                              width: '100%',
+                              height: '300px',
+                              padding: '15px',
+                              border: '2px solid #e0e0e0',
+                              borderRadius: '8px',
+                              fontSize: '15px',
+                              lineHeight: '1.6',
+                              resize: 'vertical',
+                              outline: 'none',
+                              transition: 'border-color 0.3s'
+                            }}
+                            onFocus={(e: React.FocusEvent<HTMLTextAreaElement>) => e.target.style.borderColor = '#8B5CF6'}
+                            onBlur={(e: React.FocusEvent<HTMLTextAreaElement>) => e.target.style.borderColor = '#e0e0e0'}
+                          />
+                          <div style={{
+                            marginTop: '10px',
+                            fontSize: '14px',
+                            color: '#666',
+                            textAlign: 'right'
+                          }}>
+                            {essay.length} karakter
+                          </div>
+                        </div>
+
+                        {/* Değerlendirme Butonu ve Sonuç */}
+                        <div className="evaluation-section" style={{textAlign: 'center'}}>
+                          <button
+                            onClick={() => evaluateWriting(taskKey)}
+                            disabled={writingLoading || essay.trim().length < 50}
+                            style={{
+                              background: '#8B5CF6',
+                              color: 'white',
+                              padding: '15px 30px',
+                              fontSize: '18px',
+                              fontWeight: 'bold',
+                              borderRadius: '25px',
+                              border: 'none',
+                              cursor: (writingLoading || essay.trim().length < 50) ? 'not-allowed' : 'pointer',
+                              opacity: (writingLoading || essay.trim().length < 50) ? 0.7 : 1,
+                              marginBottom: '20px'
+                            }}
+                          >
+                            {writingLoading ? '🔄 Değerlendiriliyor...' : '📊 Değerlendir'}
+                          </button>
+
+                          {result && (
+                            <div className="result-section" style={{
+                              background: '#f8f9fa',
+                              padding: '25px',
+                              borderRadius: '12px',
+                              border: '2px solid #8B5CF6',
+                              marginTop: '20px',
+                              textAlign: 'left'
+                            }}>
+                              <h5 style={{color: '#8B5CF6', fontSize: '18px', marginBottom: '20px', textAlign: 'center'}}>
+                                📊 Task {currentWritingTask + 1} Sonuçları
+                              </h5>
+                              
+                              {/* Band Score */}
+                              <div style={{textAlign: 'center', marginBottom: '20px'}}>
+                                <div style={{
+                                  background: 'white',
+                                  padding: '15px',
+                                  borderRadius: '8px',
+                                  border: '1px solid #e0e0e0',
+                                  display: 'inline-block'
+                                }}>
+                                  <strong style={{color: '#8B5CF6'}}>Band Score:</strong>
+                                  <span style={{fontSize: '32px', fontWeight: 'bold', color: '#8B5CF6', marginLeft: '10px'}}>
+                                    {result.overall_band || 'N/A'}
+                                  </span>
+                                </div>
+                              </div>
+
+                              {/* Criteria Scores */}
+                              {result.criteria && (
+                                <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '15px', marginBottom: '20px'}}>
+                                  {Object.entries(result.criteria).map(([criterion, score]) => (
+                                    <div key={criterion} style={{
+                                      background: 'white',
+                                      padding: '15px',
+                                      borderRadius: '8px',
+                                      border: '1px solid #e0e0e0',
+                                      textAlign: 'center'
+                                    }}>
+                                      <strong style={{color: '#8B5CF6'}}>{criterion}</strong><br/>
+                                      <span style={{fontSize: '24px', fontWeight: 'bold', color: '#8B5CF6'}}>
+                                        {score as number}
+                                      </span>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+
+                              {/* Feedback */}
+                              <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px'}}>
+                                {result.strengths && result.strengths.length > 0 && (
+                        <div>
+                                    <h6 style={{color: '#28a745', marginBottom: '10px'}}>✅ Güçlü Yönler:</h6>
+                                    <ul style={{margin: 0, paddingLeft: '20px', fontSize: '14px'}}>
+                                      {result.strengths.map((strength: string, i: number) => (
+                                        <li key={i} style={{marginBottom: '5px'}}>{strength}</li>
+                                      ))}
+                          </ul>
+                        </div>
+                      )}
+                                {result.weaknesses && result.weaknesses.length > 0 && (
+                                  <div>
+                                    <h6 style={{color: '#dc3545', marginBottom: '10px'}}>🔧 Gelişim Alanları:</h6>
+                                    <ul style={{margin: 0, paddingLeft: '20px', fontSize: '14px'}}>
+                                      {result.weaknesses.map((weakness: string, i: number) => (
+                                        <li key={i} style={{marginBottom: '5px'}}>{weakness}</li>
+                                      ))}
+                                    </ul>
+                    </div>
+                  )}
+                              </div>
+
+                              {result.suggestions && result.suggestions.length > 0 && (
+                                <div style={{marginTop: '20px'}}>
+                                  <h6 style={{color: '#8B5CF6', marginBottom: '10px'}}>💡 Öneriler:</h6>
+                                  <ul style={{margin: 0, paddingLeft: '20px', fontSize: '14px'}}>
+                                    {result.suggestions.map((suggestion: string, i: number) => (
+                                      <li key={i} style={{marginBottom: '5px'}}>{suggestion}</li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  {/* Task Navigasyon Butonları */}
+                  <div className="task-navigation-buttons" style={{
+                    display: 'flex', 
+                    justifyContent: 'space-between', 
+                    marginTop: '30px',
+                    padding: '20px 0'
+                  }}>
+                    <button 
+                      className="btn btn-secondary"
+                      onClick={() => setCurrentWritingTask(Math.max(0, currentWritingTask - 1))}
+                      disabled={currentWritingTask === 0}
+                      style={{
+                        padding: '12px 24px',
+                        fontSize: '16px',
+                        opacity: currentWritingTask === 0 ? 0.5 : 1,
+                        cursor: currentWritingTask === 0 ? 'not-allowed' : 'pointer'
+                      }}
+                    >
+                      ← Önceki Task
+                    </button>
+                    
+                    <div className="task-info" style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '20px',
+                      fontSize: '14px',
+                      color: '#666'
+                    }}>
+                      <span>Task {currentWritingTask + 1} / 2</span>
+                      <span>
+                        {currentWritingTask === 0 ? 
+                          (writingMode === 'academic' ? 'Grafik Analizi' : 'Mektup') : 
+                          'Essay'
+                        }
+                      </span>
+                    </div>
+                    
+                    <button 
+                      className="btn btn-primary"
+                      onClick={() => setCurrentWritingTask(Math.min(1, currentWritingTask + 1))}
+                      disabled={currentWritingTask === 1}
+                      style={{
+                        background: '#8B5CF6',
+                        color: 'white',
+                        padding: '12px 24px',
+                        fontSize: '16px',
+                        opacity: currentWritingTask === 1 ? 0.5 : 1,
+                        cursor: currentWritingTask === 1 ? 'not-allowed' : 'pointer'
+                      }}
+                    >
+                      Sonraki Task →
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
