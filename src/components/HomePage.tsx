@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { BookOpen, PenTool, Headphones, Mic, Trophy } from 'lucide-react';
+import { BookOpen, PenTool, Headphones, Mic, Trophy, BarChart3 } from 'lucide-react';
 import { auth } from '../services/auth';
 
 const HomePage: React.FC = () => {
@@ -54,11 +54,7 @@ const HomePage: React.FC = () => {
         <p className="subtitle">Yapay Zeka Destekli IELTS Hazırlık Platformu</p>
         
         {isAuthenticated ? (
-          <div className="auth-buttons">
-            <span className="welcome-text">Hoş geldin, {user?.name || 'Kullanıcı'}!</span>
-            <Link to="/dashboard" className="auth-btn dashboard-btn">📊 Dashboard</Link>
-            <button onClick={handleLogout} className="auth-btn logout-btn">Çıkış Yap</button>
-          </div>
+          <div className="welcome-only">Hoş geldin, {user?.name || 'Kullanıcı'}!</div>
         ) : (
           <div className="auth-buttons">
             <Link to="/login" className="auth-btn login-btn">Giriş Yap</Link>
@@ -66,6 +62,12 @@ const HomePage: React.FC = () => {
           </div>
         )}
       </div>
+
+      {isAuthenticated && (
+        <div className="logout-fixed">
+          <button onClick={handleLogout} className="auth-btn logout-btn">Çıkış Yap</button>
+        </div>
+      )}
 
       <div className="grid">
         <div className="card">
@@ -125,6 +127,18 @@ const HomePage: React.FC = () => {
           </p>
           <Link to="/general-test" className="btn" style={{ background: "#FFD700", color: "#222" }}>
             Genel Deneme Modülüne Git
+          </Link>
+        </div>
+
+        <div className="card">
+          <BarChart3 className="icon" />
+          <h2>Dashboard</h2>
+          <p>
+            Tüm modüllerdeki performansını tek ekranda takip et. Gelişimini,
+            en iyi skorlarını ve son test sonuçlarını görüntüle.
+          </p>
+          <Link to="/dashboard" className="btn btn-secondary">
+            Dashboard'a Git
           </Link>
         </div>
       </div>

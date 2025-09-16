@@ -737,14 +737,17 @@ const ListeningModule: React.FC = () => {
               <li>Sonuçlarınızı görün</li>
             </ol>
             <div style={{ 
-              backgroundColor: '#e7f3ff', 
-              padding: '15px', 
-              borderRadius: '8px', 
+              backgroundColor: '#0d47a1',
+              padding: '15px',
+              borderRadius: '8px',
               marginTop: '15px',
-              border: '1px solid #b3d9ff'
+              border: '1px solidrgb(132, 177, 255)',
+              color: 'white',
+              position: 'relative',
+              zIndex: 1
             }}>
-              <h4 style={{ margin: '0 0 10px 0', color: '#0066cc' }}>💡 İpuçları:</h4>
-              <ul style={{ margin: 0, paddingLeft: '20px' }}>
+              <h4 style={{ margin: '0 0 10px 0', color: 'white' }}>💡 İpuçları:</h4>
+              <ul style={{ margin: 0, paddingLeft: '20px', listStylePosition: 'inside' }}>
                 <li>Metin başta gizli - gerçek IELTS gibi dinle</li>
                 <li>Durdur/Devam Et ile istediğin zaman kontrol et</li>
                 <li>Farklı aksanları dene - gerçek sınavda karşılaşabilirsin</li>

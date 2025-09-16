@@ -8,7 +8,7 @@ import uvicorn
 import asyncio
 import datetime
 
-from dotenv import load_dotenv
+from dotenv import load_dotenv, find_dotenv
 
 try:
     from motor.motor_asyncio import AsyncIOMotorClient  # type: ignore
@@ -26,7 +26,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# API endpoints
 @app.get("/")
 async def root():
     return {"message": "Reading Module API - Geliştirici: AZROS", "status": "ready"}
@@ -73,7 +72,16 @@ DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "rea
 TESTS_FILE = os.path.join(DATA_DIR, "tests.json")
 
 # -------------- MongoDB Setup --------------
-load_dotenv()
+# Load .env from project root even if cwd is modules/
+try:
+    env_path = find_dotenv()
+    if env_path:
+        load_dotenv(env_path)
+    else:
+        load_dotenv()
+except Exception:
+    # Fallback silently if dotenv is not available
+    pass
 MONGODB_URI = os.getenv("MONGODB_URI", "mongodb://localhost:27017")
 MONGODB_DB = os.getenv("MONGODB_DB", "ielts_go")
 
