@@ -499,26 +499,37 @@ const ListeningModule: React.FC = () => {
 
         {/* Sınav Arayüzü */}
         {listeningContent && testStarted && (
-          <div className="card mb-4">
-            {/* Sınav Header */}
-            <div className="exam-header">
+          <>
+            {/* Fixed Header */}
+            <div className="exam-header-fixed">
               <div className="exam-info">
                 <h3>🎧 IELTS Listening Test - {listeningContent.topic}</h3>
                 <p>10 soru | İstediğiniz zaman durabilir veya bitirebilirsiniz</p>
               </div>
             </div>
+            <div className="card mb-4" style={{ marginTop: '120px' }}>
 
             {/* Mevcut Bölüm */}
             {listeningContent.sections[0] && (
               <div className="current-section">
                 <h4>🎧 Dinleme Metni</h4>
                 
-                <div className="section-controls">
+                <div className="section-controls" style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                   <button 
                     onClick={() => playText(listeningContent.sections[0].audio_script)}
                     disabled={isGeneratingAudio}
-                    className="btn btn-success"
-                    style={{ marginRight: '10px' }}
+                    style={{ 
+                      padding: '8px 16px', 
+                      fontSize: '14px',
+                      background: '#667eea',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '6px',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px'
+                    }}
                   >
                     {isGeneratingAudio ? (
                       <>⏳ Ses üretiliyor...</>
@@ -534,22 +545,18 @@ const ListeningModule: React.FC = () => {
                   <button 
                     onClick={() => {
                       setShowTranscript(!showTranscript);
-                      // Transcript gösterildiğinde scroll'u en üste götür
-                      if (!showTranscript) {
-                        setTimeout(() => {
-                          window.scrollTo({ top: 0, behavior: 'smooth' });
-                        }, 100);
-                      }
                     }}
-                    className="btn"
                     style={{ 
-                      padding: '5px 15px', 
-                      fontSize: '12px',
-                      background: showTranscript ? '#dc3545' : '#007bff',
+                      padding: '8px 16px', 
+                      fontSize: '14px',
+                      background: '#667eea',
                       color: 'white',
                       border: 'none',
-                      borderRadius: '4px',
-                      cursor: 'pointer'
+                      borderRadius: '6px',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px'
                     }}
                   >
                     {showTranscript ? '👁️ Metni Gizle' : '👁️ Metni Göster'}
@@ -606,8 +613,17 @@ const ListeningModule: React.FC = () => {
 
                       {/* Doğru/Yanlış Sorular */}
                       {question.type === 'true_false' && (
-                        <div>
-                          <label className="option-label">
+                        <div style={{ display: 'flex', gap: '12px', marginTop: '8px' }}>
+                          <label className="option-label" style={{ 
+                            display: 'flex', 
+                            alignItems: 'center', 
+                            gap: '8px', 
+                            padding: '8px 12px', 
+                            background: userAnswers[question.id] === true ? '#e7f3ff' : '#f8f9fa',
+                            border: userAnswers[question.id] === true ? '2px solid #667eea' : '1px solid #e0e0e0',
+                            borderRadius: '6px',
+                            cursor: 'pointer'
+                          }}>
                             <input
                               type="radio"
                               name={`question-${question.id}`}
@@ -617,7 +633,16 @@ const ListeningModule: React.FC = () => {
                             />
                             True
                           </label>
-                          <label className="option-label">
+                          <label className="option-label" style={{ 
+                            display: 'flex', 
+                            alignItems: 'center', 
+                            gap: '8px', 
+                            padding: '8px 12px', 
+                            background: userAnswers[question.id] === false ? '#e7f3ff' : '#f8f9fa',
+                            border: userAnswers[question.id] === false ? '2px solid #667eea' : '1px solid #e0e0e0',
+                            borderRadius: '6px',
+                            cursor: 'pointer'
+                          }}>
                             <input
                               type="radio"
                               name={`question-${question.id}`}
@@ -646,6 +671,7 @@ const ListeningModule: React.FC = () => {
               </div>
             )}
           </div>
+          </>
         )}
 
         {/* Sonuçlar */}

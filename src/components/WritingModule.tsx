@@ -209,27 +209,69 @@ const WritingModule: React.FC = () => {
             <ArrowLeft style={{ marginRight: '8px' }} />
             Ana Sayfaya Dön
           </Link>
-          <h1 className="module-header">
+          <h1 className="module-header" style={{ justifyContent: 'center' }}>
             <PenTool />
-            Writing Modülü
+            <span>Writing Modülü</span>
           </h1>
         </div>
 
         {!mode || !task ? (
           <div className="card">
             <h3>🧭 Modül Seçimi</h3>
-            <div className="mt-3">
-              <button className="btn" onClick={() => { setMode('academic'); setTask(''); setResult(null); }}>Academic</button>
-              <span style={{ marginRight: 8 }} />
-              <button className="btn btn-secondary" onClick={() => { setMode('general'); setTask(''); setResult(null); }}>General Training</button>
+            {/* Mode cards */}
+            <div className="mt-3" style={{ display: 'flex', gap: 12, flexWrap: 'wrap', justifyContent: 'center' }}>
+              <div
+                onClick={() => { setMode('academic'); setTask(''); setLetterType(''); setResult(null); }}
+                style={{
+                  cursor: 'pointer', padding: '12px 18px', borderRadius: 12, minWidth: 180, textAlign: 'center',
+                  background: mode === 'academic' ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' : 'var(--card-bg)',
+                  color: mode === 'academic' ? '#fff' : 'inherit',
+                  border: '2px solid', borderColor: mode === 'academic' ? '#764ba2' : '#e9ecef',
+                  boxShadow: 'var(--card-shadow)'
+                }}
+              >
+                Academic
+              </div>
+              <div
+                onClick={() => { setMode('general'); setTask(''); setLetterType(''); setResult(null); }}
+                style={{
+                  cursor: 'pointer', padding: '12px 18px', borderRadius: 12, minWidth: 180, textAlign: 'center',
+                  background: mode === 'general' ? 'linear-gradient(135deg, #4ecdc4 0%, #44a08d 100%)' : 'var(--card-bg)',
+                  color: mode === 'general' ? '#fff' : 'inherit',
+                  border: '2px solid', borderColor: mode === 'general' ? '#44a08d' : '#e9ecef',
+                  boxShadow: 'var(--card-shadow)'
+                }}
+              >
+                General Training
+              </div>
             </div>
+            {/* Task cards */}
             {mode && (
               <div className="mt-3">
-                <label>Görev</label>
-                <div className="mt-2">
-                  <button className="btn" onClick={() => { setTask('task1'); setResult(null); }}>Task 1</button>
-                  <span style={{ marginRight: 8 }} />
-                  <button className="btn btn-success" onClick={() => { setTask('task2'); setResult(null); }}>Task 2</button>
+                <label style={{ display: 'block', textAlign: 'center', marginBottom: 8 }}>Görev</label>
+                <div className="mt-2" style={{ display: 'flex', gap: 12, flexWrap: 'wrap', justifyContent: 'center' }}>
+                  <div
+                    onClick={() => { setTask('task1'); setResult(null); }}
+                    style={{
+                      cursor: 'pointer', padding: '10px 16px', borderRadius: 10, minWidth: 140, textAlign: 'center',
+                      background: task === 'task1' ? 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)' : 'var(--card-bg)',
+                      color: task === 'task1' ? '#fff' : 'inherit',
+                      border: '2px solid', borderColor: task === 'task1' ? '#f5576c' : '#e9ecef'
+                    }}
+                  >
+                    Task 1
+                  </div>
+                  <div
+                    onClick={() => { setTask('task2'); setResult(null); }}
+                    style={{
+                      cursor: 'pointer', padding: '10px 16px', borderRadius: 10, minWidth: 140, textAlign: 'center',
+                      background: task === 'task2' ? 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)' : 'var(--card-bg)',
+                      color: task === 'task2' ? '#fff' : 'inherit',
+                      border: '2px solid', borderColor: task === 'task2' ? '#00f2fe' : '#e9ecef'
+                    }}
+                  >
+                    Task 2
+                  </div>
                 </div>
                 {mode === 'general' && task === 'task1' && (
                   <div className="mt-3">
@@ -261,6 +303,39 @@ const WritingModule: React.FC = () => {
         ) : (
         <div className="card">
           <h3>📝 Yazım Alanı</h3>
+          {/* Üst kontrol butonları */}
+          <br/>
+
+          <div className="mt-2" style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
+            <button
+              className="btn"
+              onClick={() => {
+                setTask('');
+                setEssay('');
+                setTopic('');
+                setResult(null);
+                setError(null);
+                setVisual(null);
+              }}
+            >
+              Görev Seçimine Dön
+            </button>
+            <button
+              className="btn btn-secondary"
+              onClick={() => {
+                setMode('');
+                setTask('');
+                setLetterType('');
+                setEssay('');
+                setTopic('');
+                setResult(null);
+                setError(null);
+                setVisual(null);
+              }}
+            >
+              Modül Seçimine Dön
+            </button>
+          </div>
           <p>
             {mode === 'general' && task === 'task1' && 'AI tarafından verilen senaryoya göre mektubunuzu yazın (100–150 kelime).'}
             {mode === 'general' && task === 'task2' && 'AI tarafından verilen başlığa göre essay yazın (150–200 kelime).'}
@@ -268,16 +343,16 @@ const WritingModule: React.FC = () => {
             {mode === 'academic' && task === 'task2' && 'Akademik bir essay (≈250 kelime) yazın: argüman + örnek + sonuç.'}
           </p>
           {mode === 'academic' && task === 'task1' && (
-            <div className="card" style={{ background: '#fafafa', border: '1px dashed #ccc' }}>
+            <div className="card" style={{ background: '#ffffff', border: '1px solid #E2E8F0' }}>
               {!visual && <p>Görsel yükleniyor...</p>}
               {visual?.type === 'table' && (
                 <>
-                  <p style={{ marginTop: 0, fontWeight: 600 }}>Sample Table</p>
+                  <p style={{ marginTop: 0, fontWeight: 600, fontSize: '1rem' }}>Sample Table</p>
                   <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                     <thead>
                       <tr>
                         {visual.columns.map((c: string) => (
-                          <th key={c} style={{ border: '1px solid #ccc', padding: '6px', textAlign: c === 'Year' ? 'left' : 'right' }}>{c}</th>
+                          <th key={c} style={{ border: '1px solid #E2E8F0', padding: '8px', textAlign: c === 'Year' ? 'left' : 'right', fontSize: '0.95rem' }}>{c}</th>
                         ))}
                       </tr>
                     </thead>
@@ -285,7 +360,7 @@ const WritingModule: React.FC = () => {
                       {visual.rows.map((row: any[], i: number) => (
                         <tr key={i}>
                           {row.map((v: any, j: number) => (
-                            <td key={j} style={{ border: '1px solid #ccc', padding: '6px', textAlign: j === 0 ? 'left' : 'right' }}>{v}</td>
+                            <td key={j} style={{ border: '1px solid #E2E8F0', padding: '8px', textAlign: j === 0 ? 'left' : 'right', fontSize: '0.95rem', color: '#2D3748' }}>{v}</td>
                           ))}
                         </tr>
                       ))}
@@ -295,8 +370,8 @@ const WritingModule: React.FC = () => {
               )}
               {visual?.type === 'bar' && (
                 <>
-                  <p style={{ marginTop: 0, fontWeight: 600 }}>Sample Bar Chart</p>
-                  <ul style={{ listStyle: 'none', paddingLeft: 0 }}>
+                  <p style={{ marginTop: 0, fontWeight: 600, fontSize: '1rem' }}>Sample Bar Chart</p>
+                  <ul style={{ listStyle: 'none', paddingLeft: 0, fontFamily: 'inherit', fontSize: '0.95rem', color: '#2D3748' }}>
                     {visual.labels.map((label: string, i: number) => (
                       <li key={i} style={{ display: 'flex', alignItems: 'center', marginBottom: 6 }}>
                         <span style={{ width: 80 }}>{label}</span>
@@ -309,24 +384,26 @@ const WritingModule: React.FC = () => {
               )}
               {visual?.type === 'pie' && (
                 <>
-                  <p style={{ marginTop: 0, fontWeight: 600 }}>Sample Pie Breakdown</p>
-                  <ul style={{ paddingLeft: 18 }}>
+                  <p style={{ marginTop: 0, fontWeight: 600, fontSize: '1rem' }}>Sample Pie Breakdown</p>
+                  <ul style={{ paddingLeft: 18, fontFamily: 'inherit', fontSize: '0.95rem', color: '#ADD8E6' }}>
                     {visual.labels.map((label: string, i: number) => (
                       <li key={i}>{label}: {visual.values[i]}%</li>
                     ))}
                   </ul>
                 </>
               )}
-              <p style={{ fontSize: 12, color: '#555' }}>Hint: Trendleri karşılaştırın (artış/azalış), en yüksek/en düşük değerler, aradaki farklar.</p>
-              <div className="mt-2">
-                <button className="btn" onClick={refreshVisual}>Yeni Görsel</button>
-              </div>
+              <p style={{ fontSize: '0.95rem', color: '#4A5568', marginTop: 10 }}>Hint: Trendleri karşılaştırın (artış/azalış), en yüksek/en düşük değerler, aradaki farklar.</p>
+            </div>
+          )}
+          {mode === 'academic' && task === 'task1' && (
+            <div className="mt-2" style={{ textAlign: 'center' }}>
+              <button className="btn" onClick={refreshVisual}>Yeni Görsel</button>
             </div>
           )}
           {mode === 'general' && task === 'task1' && (
             <div className="mt-2">
               <label>Mektup Türü</label>
-              <div className="mt-2">
+              <div className="mt-2" style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
                 <select
                   className="form-control"
                   value={letterType}
@@ -337,48 +414,24 @@ const WritingModule: React.FC = () => {
                   <option value="informal">Informal (arkadaş/aile)</option>
                   <option value="formal">Formal (manager/kurum)</option>
                 </select>
+               
+                 
+                </div>
               </div>
-            </div>
+            
           )}
-          <div className="mt-2">
-            <button
-              className="btn"
-              onClick={() => {
-                setTask('');
-                setEssay('');
-                setTopic('');
-                setResult(null);
-                setError(null);
-              }}
-            >
-              Görev Seçimine Dön
-            </button>
-            <span style={{ marginRight: 8 }} />
-            <button
-              className="btn btn-secondary"
-              onClick={() => {
-                setMode('');
-                setTask('');
-                setLetterType('');
-                setEssay('');
-                setTopic('');
-                setResult(null);
-                setError(null);
-              }}
-            >
-              Modül Seçimine Dön
-            </button>
-          </div>
+ 
+          
           {!(mode === 'academic' && task === 'task1') && (
             <>
               <label className="mt-3">Konu (AI tarafından atandı)</label>
               <textarea
                 className="form-control"
-                style={{ minHeight: '90px' }}
+                style={{ minHeight: '90px', fontFamily: 'inherit', fontSize: '1rem' }}
                 value={topic}
                 readOnly
               />
-              <div className="mt-2">
+              <div className="mt-3">
                 <button className="btn" onClick={handleSuggestTopic}>Yeni Konu</button>
               </div>
             </>
@@ -386,7 +439,7 @@ const WritingModule: React.FC = () => {
           <label className="mt-3">Essay</label>
           <textarea
             className="form-control"
-            style={{ minHeight: '200px' }}
+            style={{ minHeight: '200px', fontFamily: 'inherit', fontSize: '1rem' }}
             placeholder="En az birkaç cümle yazın..."
             value={essay}
             onChange={(e) => setEssay(e.target.value)}

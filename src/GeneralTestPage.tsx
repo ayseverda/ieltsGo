@@ -710,7 +710,7 @@ const GeneralTestPage: React.FC = () => {
                     onClick={startListeningTest}
                   >
                     <Play className="icon" />
-                    Litening Testini Başlat
+                    Listening Testini Başlat
                   </button>
                   <button className="btn btn-outline">
                     <CheckCircle className="icon" />
