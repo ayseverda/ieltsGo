@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, Trophy, Clock, CheckCircle, Play, Pause, RotateCcw } from 'lucide-react';
+import { ArrowLeft, Trophy, Clock, CheckCircle, Play, Pause, RotateCcw, Mic, Square } from 'lucide-react';
 
 const GeneralTestPage: React.FC = () => {
   const [currentStep, setCurrentStep] = useState(0);
@@ -26,6 +26,176 @@ const GeneralTestPage: React.FC = () => {
   const [readingAnswers, setReadingAnswers] = useState<Record<string, string>>({});
   const [readingResult, setReadingResult] = useState<any | null>(null);
   const [currentReadingPassage, setCurrentReadingPassage] = useState<number>(0);
+
+  // Speaking modülü için durumlar (IELTS formatı)
+  const [speakingPart, setSpeakingPart] = useState<number>(1); // 1,2,3
+  const [isRecording, setIsRecording] = useState<boolean>(false);
+  const [isProcessingSpeech, setIsProcessingSpeech] = useState<boolean>(false);
+  const [speakingError, setSpeakingError] = useState<string>('');
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const [transcripts, setTranscripts] = useState<{ part1: string[]; part2: string; part3: string[] }>({ part1: [], part2: '', part3: [] });
+  const [activeRecordingIndex, setActiveRecordingIndex] = useState<number | null>(null);
+  const [part1Answers, setPart1Answers] = useState<string[]>(['', '', '', '']);
+  const [part3Answers, setPart3Answers] = useState<string[]>(['', '', '']);
+  const browserRecognitionRef = useRef<any>(null);
+  const browserTranscriptRef = useRef<string>('');
+  const [usingBrowserSTT, setUsingBrowserSTT] = useState<boolean>(false);
+  const speakingPrompts = useMemo(() => ({
+    part1: [
+      'Let’s talk about your hometown. Where is it?',
+      'What do you like most about your hometown?',
+      'Do you work or are you a student?',
+      'What do you do in your free time?'
+    ],
+    part2: {
+      topic: 'Describe a memorable trip you have taken',
+      bullets: [
+        'Where you went',
+        'Who you went with',
+        'What you did there',
+        'And explain why it was memorable'
+      ]
+    },
+    part3: [
+      'How has tourism changed in your country over the years?',
+      'What are the benefits and drawbacks of international travel?',
+      'Do you think people travel too much nowadays? Why/Why not?'
+    ]
+  }), []);
+
+  const startSpeakingRecording = async () => {
+    try {
+      setSpeakingError('');
+      audioChunksRef.current = [];
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
+      });
+      mediaRecorderRef.current = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+      mediaRecorderRef.current.ondataavailable = (event) => {
+        if (event.data.size > 0) audioChunksRef.current.push(event.data);
+      };
+      mediaRecorderRef.current.onstop = () => {
+        stream.getTracks().forEach(t => t.stop());
+        processSpeakingAudio();
+      };
+      mediaRecorderRef.current.start(1000);
+      setIsRecording(true);
+
+      // Start browser STT in parallel as a fallback (Chrome)
+      try {
+        const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+        if (SpeechRecognition) {
+          const recognition = new SpeechRecognition();
+          browserRecognitionRef.current = recognition;
+          browserTranscriptRef.current = '';
+          recognition.lang = 'en-US';
+          recognition.interimResults = true;
+          recognition.continuous = true;
+          recognition.onresult = (event: any) => {
+            let chunk = '';
+            for (let i = event.resultIndex; i < event.results.length; i++) {
+              const res = event.results[i];
+              const textPiece = res[0]?.transcript || '';
+              chunk += textPiece + (res.isFinal ? ' ' : ' ');
+            }
+            if (chunk) browserTranscriptRef.current = (browserTranscriptRef.current + ' ' + chunk).trim();
+          };
+          recognition.onerror = () => {};
+          recognition.start();
+        }
+      } catch {}
+    } catch (e: any) {
+      setSpeakingError('Mikrofon erişimi başarısız. Tarayıcıdan izin verin.');
+    }
+  };
+
+  const stopSpeakingRecording = () => {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+    }
+    // Stop browser STT fallback
+    try {
+      if (browserRecognitionRef.current) {
+        browserRecognitionRef.current.onresult = null;
+        browserRecognitionRef.current.onerror = null;
+        browserRecognitionRef.current.stop();
+      }
+    } catch {}
+  };
+
+  const processSpeakingAudio = async () => {
+    setIsProcessingSpeech(true);
+    setSpeakingError('');
+    try {
+      if (audioChunksRef.current.length === 0) throw new Error('Ses yakalanamadı');
+      const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+      if (audioBlob.size < 100) throw new Error('Ses dosyası çok küçük');
+      const reader = new FileReader();
+      reader.onloadend = async () => {
+        try {
+          const base64 = (reader.result as string).split(',')[1];
+          const sttRes = await fetch('http://localhost:8000/api/speaking/speech-to-text', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ audio_data: base64, format: 'webm' })
+          });
+          if (!sttRes.ok) throw new Error(`STT hata: ${sttRes.status}`);
+          const data = await sttRes.json();
+          const text: string = data.text || '';
+          if (!text.trim()) throw new Error('Konuşma algılanamadı');
+          // Esas doldurma: aktif textarea'yı konuşma ile doldur
+          if (speakingPart === 1 && activeRecordingIndex !== null) {
+            setPart1Answers(prev => {
+              const copy = [...prev];
+              copy[activeRecordingIndex] = text;
+              return copy;
+            });
+          } else if (speakingPart === 3 && activeRecordingIndex !== null) {
+            setPart3Answers(prev => {
+              const copy = [...prev];
+              copy[activeRecordingIndex] = text;
+              return copy;
+            });
+          } else if (speakingPart === 2) {
+            setTranscripts(prev => ({ ...prev, part2: prev.part2 ? prev.part2 + ' ' + text : text }));
+          }
+        } catch (err: any) {
+          // Fallback: use browser SpeechRecognition transcript if available
+          const fallback = (browserTranscriptRef.current || '').trim();
+          if (fallback) {
+            if (speakingPart === 1 && activeRecordingIndex !== null) {
+              setPart1Answers(prev => {
+                const copy = [...prev];
+                copy[activeRecordingIndex] = fallback;
+                return copy;
+              });
+            } else if (speakingPart === 3 && activeRecordingIndex !== null) {
+              setPart3Answers(prev => {
+                const copy = [...prev];
+                copy[activeRecordingIndex] = fallback;
+                return copy;
+              });
+            } else if (speakingPart === 2) {
+              setTranscripts(prev => ({ ...prev, part2: prev.part2 ? prev.part2 + ' ' + fallback : fallback }));
+            }
+            setUsingBrowserSTT(true);
+            setSpeakingError('');
+          } else {
+            setSpeakingError(err?.message || 'STT hata');
+          }
+        } finally {
+          setIsProcessingSpeech(false);
+          setActiveRecordingIndex(null);
+        }
+      };
+      reader.readAsDataURL(audioBlob);
+    } catch (e: any) {
+      setSpeakingError(e?.message || 'Ses işleme hatası');
+      setIsProcessingSpeech(false);
+    }
+  };
 
   // Writing modülü için durumlar
   const [writingMode, setWritingMode] = useState<string>('academic'); // academic | general
@@ -109,6 +279,30 @@ const GeneralTestPage: React.FC = () => {
     setCurrentStep(0);
     setTimeLeft(0);
     setIsPaused(false);
+  };
+
+  // Genel deneme bittiğinde puanı kaydet ve streak güncelle
+  const completeGeneralMockAndSave = async (bands: { reading?: number; writing?: number; listening?: number; speaking?: number }) => {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) return;
+      const resp = await fetch('http://localhost:8000/api/complete-general-test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({
+          reading_band: bands.reading,
+          writing_band: bands.writing,
+          listening_band: bands.listening,
+          speaking_band: bands.speaking,
+          detailed: { source: 'general_test_page' }
+        })
+      });
+      if (!resp.ok) return;
+      const data = await resp.json();
+      console.log('✅ Genel deneme kaydedildi:', data);
+    } catch (e) {
+      console.warn('Genel deneme kaydetme hatası:', e);
+    }
   };
 
   const nextStep = () => {
@@ -564,6 +758,16 @@ const GeneralTestPage: React.FC = () => {
 
   // Sınav tamamlandıysa sonuç sayfasını göster
   if (testCompleted) {
+    // Ortalama band değerini hesapla (şimdilik placeholder: readingResult vs yoksa null)
+    useEffect(() => {
+      // Bu effect yalnızca sonuç ekranına ilk girişte bir kez çalışsın
+      const onceKey = 'general_test_saved_once';
+      if (sessionStorage.getItem(onceKey)) return;
+      sessionStorage.setItem(onceKey, '1');
+      // Basit placeholder skorlar: Reading sonucu varsa kullan, diğerleri 0
+      const estimatedReading = readingResult?.band_estimate || 0;
+      completeGeneralMockAndSave({ reading: Number(estimatedReading) || 0 });
+    }, []);
     return (
       <div className="container">
         <div className="text-center mb-4">
@@ -1786,6 +1990,123 @@ const GeneralTestPage: React.FC = () => {
                     >
                       Sonraki Task →
                     </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : steps[currentStep].name === 'Speaking' ? (
+            <div className="speaking-module">
+              <div className="ielts-instructions">
+                <h3>🗣️ IELTS Speaking Test</h3>
+                <p>3 bölümden oluşur: Part 1 (Giriş ve Röportaj), Part 2 (Cue Card), Part 3 (Tartışma).</p>
+                <div className="section-controls" style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  <button className={`btn ${speakingPart === 1 ? 'btn-primary' : 'btn-outline'}`} onClick={() => setSpeakingPart(1)}>Part 1</button>
+                  <button className={`btn ${speakingPart === 2 ? 'btn-primary' : 'btn-outline'}`} onClick={() => setSpeakingPart(2)}>Part 2</button>
+                  <button className={`btn ${speakingPart === 3 ? 'btn-primary' : 'btn-outline'}`} onClick={() => setSpeakingPart(3)}>Part 3</button>
+                </div>
+              </div>
+
+              {speakingError && (
+                <div className="error-message" style={{color:'#d33', background:'#ffe6e6', padding:10, borderRadius:6, margin:'10px 0'}}>
+                  ❌ {speakingError}
+                </div>
+              )}
+
+              {/* Content per Part */}
+              {speakingPart === 1 && (
+                <div className="card" style={{ marginTop: 10 }}>
+                  <h4>Part 1: Introduction and Interview</h4>
+                  <div style={{ marginTop: 10 }}>
+                    {speakingPrompts.part1.map((q, i) => (
+                      <div key={`p1_${i}`} style={{ marginBottom: 16 }}>
+                        <div style={{ marginBottom: 6, fontWeight: 500 }}>
+                          {i + 1}. {q}
+                        </div>
+                        <textarea
+                          value={part1Answers[i]}
+                          readOnly
+                          placeholder="Konuşmanız buraya otomatik yazılacak (elle yazılamaz)"
+                          style={{ width:'100%', minHeight: 90, padding: 12, border:'1px solid #e0e0e0', borderRadius: 8, background:'#fafafa', cursor:'not-allowed' }}
+                        />
+                        <div style={{ marginTop: 8 }}>
+                          <button
+                            className="btn btn-primary"
+                            onClick={() => {
+                              setActiveRecordingIndex(i);
+                              if (isRecording) { stopSpeakingRecording(); } else { startSpeakingRecording(); }
+                            }}
+                            disabled={isProcessingSpeech}
+                            style={{ display:'inline-flex', alignItems:'center', gap:8 }}
+                          >
+                            {isRecording && activeRecordingIndex === i ? <Square className="icon" /> : <Mic className="icon" />}
+                            {isRecording && activeRecordingIndex === i ? 'Kaydı Durdur' : 'Kaydı Başlat'}
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {speakingPart === 2 && (
+                <div className="card" style={{ marginTop: 10 }}>
+                  <h4>Part 2: Long Turn (Cue Card)</h4>
+                  <div style={{ background:'#f8f9fa', border:'1px solid #e0e0e0', borderRadius:8, padding:14 }}>
+                    <strong>Topic:</strong> {speakingPrompts.part2.topic}
+                    <ul style={{ marginTop: 8 }}>
+                      {speakingPrompts.part2.bullets.map((b, i) => (
+                        <li key={i}>{b}</li>
+                      ))}
+                    </ul>
+                  </div>
+                  <div style={{ marginTop: 12 }}>
+                    <textarea
+                      value={transcripts.part2}
+                      readOnly
+                      placeholder="Konuşmanız buraya otomatik yazılacak (elle yazılamaz)"
+                      style={{ width:'100%', minHeight: 120, padding: 12, border:'1px solid #e0e0e0', borderRadius: 8, background:'#fafafa', cursor:'not-allowed' }}
+                    />
+                    <div style={{ display:'flex', gap:10, alignItems:'center', marginTop: 10 }}>
+                      <button className="btn btn-primary" onClick={() => { setActiveRecordingIndex(null); if (isRecording) { stopSpeakingRecording(); } else { startSpeakingRecording(); } }} disabled={isProcessingSpeech}>
+                        {isRecording ? 'Kaydı Durdur' : 'Kaydı Başlat'}
+                      </button>
+                      {isProcessingSpeech && <span style={{ color:'#666' }}>Ses işleniyor...</span>}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {speakingPart === 3 && (
+                <div className="card" style={{ marginTop: 10 }}>
+                  <h4>Part 3: Discussion</h4>
+                  <div style={{ marginTop: 10 }}>
+                    {speakingPrompts.part3.map((q, i) => (
+                      <div key={`p3_${i}`} style={{ marginBottom: 16 }}>
+                        <div style={{ marginBottom: 6, fontWeight: 500 }}>
+                          {i + 1}. {q}
+                        </div>
+                        <textarea
+                          value={part3Answers[i]}
+                          readOnly
+                          placeholder="Konuşmanız buraya otomatik yazılacak (elle yazılamaz)"
+                          style={{ width:'100%', minHeight: 90, padding: 12, border:'1px solid #e0e0e0', borderRadius: 8, background:'#fafafa', cursor:'not-allowed' }}
+                        />
+                        <div style={{ marginTop: 8 }}>
+                          <button
+                            className="btn btn-primary"
+                            onClick={() => {
+                              setActiveRecordingIndex(i);
+                              if (isRecording) { stopSpeakingRecording(); } else { startSpeakingRecording(); }
+                            }}
+                            disabled={isProcessingSpeech}
+                            style={{ display:'inline-flex', alignItems:'center', gap:8 }}
+                          >
+                            {isRecording && activeRecordingIndex === i ? <Square className="icon" /> : <Mic className="icon" />}
+                            {isRecording && activeRecordingIndex === i ? 'Kaydı Durdur' : 'Kaydı Başlat'}
+                          </button>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
               )}

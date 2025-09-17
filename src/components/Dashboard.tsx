@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { auth } from '../services/auth';
 import './Dashboard.css';
+import PlantGrowth from './PlantGrowth';
 
 interface UserStats {
   listening: {
@@ -178,10 +179,10 @@ const Dashboard: React.FC = () => {
           <div className="improvement">+{userStats?.overall.improvementRate || '0'}% gelişim</div>
         </div>
 
-        <div className="stat-card streak">
+        <div className="stat-card streak" style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center' }}>
           <h3>🔥 Seri</h3>
-          <div className="score">{userStats?.overall.streak || '0'} gün</div>
-          <div className="improvement">Günlük çalışma</div>
+          <PlantGrowth streak={userStats?.overall.streak || 0} size={160} />
+          <div className="improvement" style={{ marginTop: 8 }}>Günlük çalışma</div>
         </div>
 
         <div className="stat-card total">

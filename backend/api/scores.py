@@ -45,6 +45,14 @@ class UserStatsResponse(BaseModel):
     writing: Dict[str, Any]
     speaking: Dict[str, Any]
     overall: Dict[str, Any]
+    # Streak ayrıca overall altında tutulmaya devam edecek
+
+class CompleteGeneralTestRequest(BaseModel):
+    reading_band: Optional[float] = None
+    writing_band: Optional[float] = None
+    listening_band: Optional[float] = None
+    speaking_band: Optional[float] = None
+    detailed: Optional[Dict[str, Any]] = None
 
 # JWT Token verification
 def verify_token(token: str) -> str:
@@ -198,6 +206,10 @@ async def get_user_stats(user_id: str = Depends(get_current_user)):
                 "best_band": 0.0,
                 "estimated_ielts": 0.0
             }
+
+        # Streak bilgisi (user_meta koleksiyonundan)
+        user_meta = await db.user_meta.find_one({"user_id": user_id})
+        overall_stats["streak"] = int(user_meta.get("streak", 0)) if user_meta else 0
         
         return UserStatsResponse(
             listening=module_stats["listening"],
@@ -209,6 +221,88 @@ async def get_user_stats(user_id: str = Depends(get_current_user)):
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"İstatistik getirme hatası: {str(e)}")
+
+def _today_date_key():
+    now = datetime.utcnow()
+    return now.strftime("%Y-%m-%d")
+
+def _yesterday_date_key():
+    from datetime import timedelta
+    dt = datetime.utcnow() - timedelta(days=1)
+    return dt.strftime("%Y-%m-%d")
+
+async def _update_user_streak(user_id: str) -> int:
+    """Kullanıcının günlük streak sayacını günceller ve yeni değeri döner."""
+    date_today = _today_date_key()
+    date_yesterday = _yesterday_date_key()
+    meta = await db.user_meta.find_one({"user_id": user_id})
+    if not meta:
+        new_meta = {"user_id": user_id, "streak": 1, "last_active": date_today}
+        await db.user_meta.insert_one(new_meta)
+        return 1
+    last_active = meta.get("last_active")
+    streak = int(meta.get("streak", 0))
+    if last_active == date_today:
+        # Aynı gün tekrar - streak değişmez
+        return streak
+    if last_active == date_yesterday:
+        streak += 1
+    else:
+        streak = 1
+    await db.user_meta.update_one(
+        {"user_id": user_id},
+        {"$set": {"streak": streak, "last_active": date_today}}
+    )
+    return streak
+
+@router.post("/complete-general-test")
+async def complete_general_test(payload: CompleteGeneralTestRequest, user_id: str = Depends(get_current_user)):
+    """
+    Genel deneme tamamlandığında:
+    - Mevcut modül bant skorlarından ortalama bir IELTS band hesaplar
+    - 'general_test' kaydı olarak db.scores koleksiyonuna ekler
+    - user_meta.streak değerini günceller
+    """
+    try:
+        components = [
+            payload.reading_band,
+            payload.writing_band,
+            payload.listening_band,
+            payload.speaking_band,
+        ]
+        valid = [x for x in components if isinstance(x, (int, float)) and x is not None and x > 0]
+        overall_band = round(sum(valid) / len(valid), 1) if valid else 0.0
+
+        score_doc = {
+            "user_id": user_id,
+            "module": "general_test",
+            "band_score": overall_band,
+            "raw_score": 0,
+            "total_questions": 0,
+            "topic": "General IELTS Mock",
+            "difficulty": "mixed",
+            "accent": None,
+            "test_date": datetime.now(),
+            "detailed_results": {
+                "reading_band": payload.reading_band,
+                "writing_band": payload.writing_band,
+                "listening_band": payload.listening_band,
+                "speaking_band": payload.speaking_band,
+                **(payload.detailed or {})
+            }
+        }
+        result = await db.scores.insert_one(score_doc)
+
+        new_streak = await _update_user_streak(user_id)
+
+        return {
+            "success": True,
+            "score_id": str(result.inserted_id),
+            "overall_band": overall_band,
+            "streak": new_streak
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Genel test kaydı sırasında hata: {str(e)}")
 
 @router.get("/recent-scores/{module}")
 async def get_recent_scores(module: str, user_id: str = Depends(get_current_user)):
