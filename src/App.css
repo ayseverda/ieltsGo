@@ -1144,3 +1144,162 @@ label {
   font-weight: 600;
   color: #8B5CF6;
 }
+
+/* Genel Deneme Sonuçları Stilleri */
+.ielts-scores-overview {
+  background: #f8f9fa;
+  padding: 25px;
+  border-radius: 15px;
+  margin-bottom: 25px;
+  border: 2px solid #e9ecef;
+}
+
+.score-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 15px;
+}
+
+.score-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 20px;
+  background: white;
+  border-radius: 12px;
+  border: 2px solid #e9ecef;
+  transition: all 0.3s ease;
+}
+
+.score-item:hover {
+  border-color: #667eea;
+  transform: translateY(-3px);
+  box-shadow: 0 5px 15px rgba(102, 126, 234, 0.2);
+}
+
+.score-item.overall {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border-color: #667eea;
+  transform: scale(1.05);
+}
+
+.score-item.overall:hover {
+  transform: scale(1.08) translateY(-3px);
+}
+
+.score-item .score-label {
+  font-size: 0.9rem;
+  font-weight: 600;
+  margin-bottom: 8px;
+  color: #666;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.score-item.overall .score-label {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.score-item .score-value {
+  font-size: 2.2rem;
+  font-weight: bold;
+  color: #333;
+}
+
+.score-item.overall .score-value {
+  color: white;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.detailed-evaluation {
+  background: white;
+  padding: 25px;
+  border-radius: 15px;
+  margin-bottom: 25px;
+  border-left: 5px solid #667eea;
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+}
+
+.detailed-evaluation h3 {
+  color: #333;
+  margin-bottom: 15px;
+  font-size: 1.4rem;
+}
+
+.detailed-evaluation p {
+  color: #666;
+  line-height: 1.6;
+  font-size: 1.1rem;
+}
+
+.module-evaluations {
+  background: white;
+  padding: 25px;
+  border-radius: 15px;
+  border: 2px solid #e9ecef;
+}
+
+.module-evaluations h3 {
+  color: #333;
+  margin-bottom: 20px;
+  font-size: 1.4rem;
+  text-align: center;
+}
+
+.evaluation-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 20px;
+}
+
+.evaluation-card {
+  background: #f8f9fa;
+  padding: 20px;
+  border-radius: 12px;
+  border: 2px solid #e9ecef;
+  transition: all 0.3s ease;
+}
+
+.evaluation-card:hover {
+  border-color: #667eea;
+  transform: translateY(-3px);
+  box-shadow: 0 5px 15px rgba(102, 126, 234, 0.2);
+}
+
+.evaluation-card h4 {
+  color: #333;
+  margin-bottom: 12px;
+  font-size: 1.2rem;
+  font-weight: 600;
+}
+
+.evaluation-card p {
+  color: #666;
+  line-height: 1.5;
+  font-size: 1rem;
+  margin: 0;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .score-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  
+  .evaluation-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .score-item .score-value {
+    font-size: 1.8rem;
+  }
+  
+  .score-item.overall {
+    transform: none;
+  }
+  
+  .score-item.overall:hover {
+    transform: translateY(-3px);
+  }
+}

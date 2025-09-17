@@ -56,11 +56,7 @@ function App() {
               <ListeningModule />
             </ProtectedRoute>
           } />
-          <Route path="/speaking" element={
-            <ProtectedRoute>
-              <SpeakingModule />
-            </ProtectedRoute>
-          } />
+          <Route path="/speaking" element={<SpeechRecording />} />
           <Route path="/speech-recording" element={<SpeechRecording />} />
           <Route path="/conversation-analysis" element={
             <ProtectedRoute>

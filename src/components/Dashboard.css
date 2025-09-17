@@ -261,6 +261,138 @@
   font-size: 1.1rem;
 }
 
+/* Genel Deneme Sonuçları Stilleri */
+.general-test-results {
+  background: white;
+  padding: 30px;
+  border-radius: 15px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+  margin-top: 30px;
+}
+
+.general-test-results h2 {
+  color: #333;
+  margin-bottom: 25px;
+  text-align: center;
+}
+
+.general-test-card {
+  background: #f8f9fa;
+  padding: 25px;
+  border-radius: 12px;
+  border: 2px solid #e9ecef;
+  margin-bottom: 20px;
+  transition: all 0.3s ease;
+}
+
+.general-test-card:hover {
+  border-color: #667eea;
+  transform: translateY(-3px);
+}
+
+.general-test-card.best {
+  border-color: #ffd700;
+  background: linear-gradient(135deg, #fff9e6 0%, #fff3cd 100%);
+}
+
+.test-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  padding-bottom: 15px;
+  border-bottom: 2px solid #e9ecef;
+}
+
+.test-header h3 {
+  color: #333;
+  margin: 0;
+  font-size: 1.3rem;
+}
+
+.test-date {
+  color: #666;
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.test-scores {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 15px;
+}
+
+.score-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 15px;
+  background: white;
+  border-radius: 10px;
+  border: 1px solid #e9ecef;
+  transition: all 0.3s ease;
+}
+
+.score-item:hover {
+  border-color: #667eea;
+  transform: translateY(-2px);
+}
+
+.score-item.overall {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border-color: #667eea;
+}
+
+.score-item .label {
+  font-size: 0.9rem;
+  font-weight: 500;
+  margin-bottom: 8px;
+  color: #666;
+}
+
+.score-item.overall .label {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.score-item .score {
+  font-size: 1.8rem;
+  font-weight: bold;
+  color: #333;
+}
+
+.score-item.overall .score {
+  color: white;
+}
+
+.general-test-info {
+  text-align: center;
+  padding: 20px;
+  background: #f8f9fa;
+  border-radius: 10px;
+  margin-top: 20px;
+}
+
+.general-test-info p {
+  color: #666;
+  margin: 0 0 15px 0;
+  font-size: 1.1rem;
+}
+
+.general-test-info .btn {
+  background: #667eea;
+  color: white;
+  padding: 12px 24px;
+  border-radius: 10px;
+  font-weight: 500;
+  transition: all 0.3s ease;
+}
+
+.general-test-info .btn:hover {
+  background: #5a67d8;
+  transform: translateY(-2px);
+}
+
 @media (max-width: 768px) {
   .dashboard-header {
     flex-direction: column;
@@ -283,5 +415,19 @@
   
   .module-cards {
     grid-template-columns: 1fr;
+  }
+
+  .test-header {
+    flex-direction: column;
+    gap: 10px;
+    text-align: center;
+  }
+
+  .test-scores {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .score-item .score {
+    font-size: 1.5rem;
   }
 }

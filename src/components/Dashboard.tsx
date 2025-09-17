@@ -31,6 +31,25 @@ interface UserStats {
     improvementRate: number;
     streak: number;
   };
+  generalTests: {
+    totalTests: number;
+    latestResult: {
+      reading: number;
+      listening: number;
+      writing: number;
+      speaking: number;
+      overall: number;
+      date: string;
+    } | null;
+    bestResult: {
+      reading: number;
+      listening: number;
+      writing: number;
+      speaking: number;
+      overall: number;
+      date: string;
+    } | null;
+  };
 }
 
 const Dashboard: React.FC = () => {
@@ -57,7 +76,8 @@ const Dashboard: React.FC = () => {
           reading: { totalTests: 0, averageScore: 0, bestScore: 0 },
           writing: { totalEssays: 0, averageScore: 0, bestScore: 0 },
           speaking: { totalSessions: 0, averageScore: 0, bestScore: 0 },
-          overall: { totalTests: 0, ieltsBandScore: 0, improvementRate: 0, streak: 0 }
+          overall: { totalTests: 0, ieltsBandScore: 0, improvementRate: 0, streak: 0 },
+          generalTests: { totalTests: 0, latestResult: null, bestResult: null }
         };
         setUserStats(defaultStats);
         setIsLoading(false);
@@ -103,6 +123,11 @@ const Dashboard: React.FC = () => {
             ieltsBandScore: data.overall.estimated_ielts,
             improvementRate: 0, // TODO: Hesaplanacak
             streak: 0 // TODO: Hesaplanacak
+          },
+          generalTests: {
+            totalTests: data.general_tests?.total_tests || 0,
+            latestResult: data.general_tests?.latest_result || null,
+            bestResult: data.general_tests?.best_result || null
           }
         };
         
@@ -120,7 +145,8 @@ const Dashboard: React.FC = () => {
         reading: { totalTests: 0, averageScore: 0, bestScore: 0 },
         writing: { totalEssays: 0, averageScore: 0, bestScore: 0 },
         speaking: { totalSessions: 0, averageScore: 0, bestScore: 0 },
-        overall: { totalTests: 0, ieltsBandScore: 0, improvementRate: 0, streak: 0 }
+        overall: { totalTests: 0, ieltsBandScore: 0, improvementRate: 0, streak: 0 },
+        generalTests: { totalTests: 0, latestResult: null, bestResult: null }
       };
       setUserStats(defaultStats);
     } finally {
@@ -281,6 +307,86 @@ const Dashboard: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Genel Deneme Sonuçları */}
+      {userStats?.generalTests && userStats.generalTests.totalTests > 0 && (
+        <div className="general-test-results">
+          <h2>🎯 Genel Deneme Sonuçları</h2>
+          
+          {userStats.generalTests.latestResult && (
+            <div className="general-test-card">
+              <div className="test-header">
+                <h3>📊 Son Deneme Sonucu</h3>
+                <span className="test-date">
+                  {new Date(userStats.generalTests.latestResult.date).toLocaleDateString('tr-TR')}
+                </span>
+              </div>
+              <div className="test-scores">
+                <div className="score-item">
+                  <span className="label">Reading:</span>
+                  <span className="score">{userStats.generalTests.latestResult.reading.toFixed(1)}</span>
+                </div>
+                <div className="score-item">
+                  <span className="label">Listening:</span>
+                  <span className="score">{userStats.generalTests.latestResult.listening.toFixed(1)}</span>
+                </div>
+                <div className="score-item">
+                  <span className="label">Writing:</span>
+                  <span className="score">{userStats.generalTests.latestResult.writing.toFixed(1)}</span>
+                </div>
+                <div className="score-item">
+                  <span className="label">Speaking:</span>
+                  <span className="score">{userStats.generalTests.latestResult.speaking.toFixed(1)}</span>
+                </div>
+                <div className="score-item overall">
+                  <span className="label">Overall:</span>
+                  <span className="score">{userStats.generalTests.latestResult.overall.toFixed(1)}</span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {userStats.generalTests.bestResult && (
+            <div className="general-test-card best">
+              <div className="test-header">
+                <h3>🏆 En İyi Sonuç</h3>
+                <span className="test-date">
+                  {new Date(userStats.generalTests.bestResult.date).toLocaleDateString('tr-TR')}
+                </span>
+              </div>
+              <div className="test-scores">
+                <div className="score-item">
+                  <span className="label">Reading:</span>
+                  <span className="score">{userStats.generalTests.bestResult.reading.toFixed(1)}</span>
+                </div>
+                <div className="score-item">
+                  <span className="label">Listening:</span>
+                  <span className="score">{userStats.generalTests.bestResult.listening.toFixed(1)}</span>
+                </div>
+                <div className="score-item">
+                  <span className="label">Writing:</span>
+                  <span className="score">{userStats.generalTests.bestResult.writing.toFixed(1)}</span>
+                </div>
+                <div className="score-item">
+                  <span className="label">Speaking:</span>
+                  <span className="score">{userStats.generalTests.bestResult.speaking.toFixed(1)}</span>
+                </div>
+                <div className="score-item overall">
+                  <span className="label">Overall:</span>
+                  <span className="score">{userStats.generalTests.bestResult.overall.toFixed(1)}</span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className="general-test-info">
+            <p>Toplam <strong>{userStats.generalTests.totalTests}</strong> genel deneme tamamlandı</p>
+            <Link to="/general-test" className="btn" style={{ textDecoration: 'none', marginTop: '10px' }}>
+              🎯 Yeni Genel Deneme Yap
+            </Link>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

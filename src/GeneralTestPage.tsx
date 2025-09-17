@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowLeft, Trophy, Clock, CheckCircle, Play, Pause, RotateCcw, Mic, Square } from 'lucide-react';
+import TestEvaluation from './components/TestEvaluation';
 
 const GeneralTestPage: React.FC = () => {
   const [currentStep, setCurrentStep] = useState(0);
@@ -28,42 +29,157 @@ const GeneralTestPage: React.FC = () => {
   const [currentReadingPassage, setCurrentReadingPassage] = useState<number>(0);
 
   // Speaking modülü için durumlar (IELTS formatı)
+  const [speakingTestStarted, setSpeakingTestStarted] = useState<boolean>(false);
   const [speakingPart, setSpeakingPart] = useState<number>(1); // 1,2,3
+  const [currentSpeakingQuestion, setCurrentSpeakingQuestion] = useState<number>(0);
+  const [speakingQuestions, setSpeakingQuestions] = useState<{
+    part1: { question: string; audioUrl?: string }[];
+    part2: { topic: string; bullets: string[]; audioUrl?: string };
+    part3: { question: string; audioUrl?: string }[];
+  }>({
+    part1: [],
+    part2: { topic: '', bullets: [] },
+    part3: []
+  });
+  const [speakingAnswers, setSpeakingAnswers] = useState<{
+    part1: string[];
+    part2: string;
+    part3: string[];
+  }>({
+    part1: ['', '', '', ''],
+    part2: '',
+    part3: ['', '', '']
+  });
   const [isRecording, setIsRecording] = useState<boolean>(false);
   const [isProcessingSpeech, setIsProcessingSpeech] = useState<boolean>(false);
   const [speakingError, setSpeakingError] = useState<string>('');
+  const [speakingLoading, setSpeakingLoading] = useState<boolean>(false);
+  const [speakingEvaluation, setSpeakingEvaluation] = useState<any>(null);
+  const [speakingEvaluating, setSpeakingEvaluating] = useState<boolean>(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
-  const [transcripts, setTranscripts] = useState<{ part1: string[]; part2: string; part3: string[] }>({ part1: [], part2: '', part3: [] });
-  const [activeRecordingIndex, setActiveRecordingIndex] = useState<number | null>(null);
-  const [part1Answers, setPart1Answers] = useState<string[]>(['', '', '', '']);
-  const [part3Answers, setPart3Answers] = useState<string[]>(['', '', '']);
-  const browserRecognitionRef = useRef<any>(null);
-  const browserTranscriptRef = useRef<string>('');
-  const [usingBrowserSTT, setUsingBrowserSTT] = useState<boolean>(false);
-  const speakingPrompts = useMemo(() => ({
-    part1: [
-      'Let’s talk about your hometown. Where is it?',
-      'What do you like most about your hometown?',
-      'Do you work or are you a student?',
-      'What do you do in your free time?'
-    ],
-    part2: {
-      topic: 'Describe a memorable trip you have taken',
-      bullets: [
-        'Where you went',
-        'Who you went with',
-        'What you did there',
-        'And explain why it was memorable'
-      ]
-    },
-    part3: [
-      'How has tourism changed in your country over the years?',
-      'What are the benefits and drawbacks of international travel?',
-      'Do you think people travel too much nowadays? Why/Why not?'
-    ]
-  }), []);
+  // const audioRefs = useRef<{ [key: string]: HTMLAudioElement }>({});
 
+  // Genel deneme sonuçları için state'ler
+  const [generalTestResults, setGeneralTestResults] = useState<{
+    reading: number;
+    listening: number;
+    writing: number;
+    speaking: number;
+    overall: number;
+    detailedEvaluation: string;
+    moduleEvaluations: {
+      reading: { score: number; feedback: string };
+      listening: { score: number; feedback: string };
+      writing: { score: number; feedback: string };
+      speaking: { score: number; feedback: string };
+    };
+  } | null>(null);
+  const [isEvaluatingGeneralTest, setIsEvaluatingGeneralTest] = useState<boolean>(false);
+  const [showDetailedEvaluation, setShowDetailedEvaluation] = useState<boolean>(false);
+  const [showTestEvaluation, setShowTestEvaluation] = useState<boolean>(false);
+  const [listeningResult, setListeningResult] = useState<any>(null);
+  // Speaking test başlatma fonksiyonu
+  const startSpeakingTest = async () => {
+    try {
+      setSpeakingLoading(true);
+      setSpeakingError('');
+      
+      // AI ile speaking soruları oluştur
+      const response = await fetch('http://localhost:8005/generate-test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          part1_count: 4,
+          part3_count: 3,
+          difficulty: 'intermediate'
+        })
+      });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Speaking test generation error:', errorText);
+        throw new Error(`Test oluşturma hatası: ${response.status} - ${errorText}`);
+      }
+      
+      const data = await response.json();
+      setSpeakingQuestions(data);
+      setSpeakingTestStarted(true);
+      setSpeakingPart(1);
+      setCurrentSpeakingQuestion(0);
+      
+      // Sorular için ses dosyaları oluştur
+      await generateAudioForQuestions(data);
+      
+    } catch (error: any) {
+      setSpeakingError(error.message || 'Test oluşturma hatası');
+    } finally {
+      setSpeakingLoading(false);
+    }
+  };
+
+  // Sorular için ses dosyaları oluştur
+  const generateAudioForQuestions = async (questions: any) => {
+    try {
+      // Part 1 soruları için ses oluştur
+      for (let i = 0; i < questions.part1.length; i++) {
+        const audioUrl = await generateAudio(questions.part1[i].question);
+        setSpeakingQuestions(prev => ({
+          ...prev,
+          part1: prev.part1.map((q, idx) => 
+            idx === i ? { ...q, audioUrl } : q
+          )
+        }));
+      }
+      
+      // Part 2 için ses oluştur
+      const part2Text = `Topic: ${questions.part2.topic}. ${questions.part2.bullets.join('. ')}`;
+      const part2AudioUrl = await generateAudio(part2Text);
+      setSpeakingQuestions(prev => ({
+        ...prev,
+        part2: { ...prev.part2, audioUrl: part2AudioUrl }
+      }));
+      
+      // Part 3 soruları için ses oluştur
+      for (let i = 0; i < questions.part3.length; i++) {
+        const audioUrl = await generateAudio(questions.part3[i].question);
+        setSpeakingQuestions(prev => ({
+          ...prev,
+          part3: prev.part3.map((q, idx) => 
+            idx === i ? { ...q, audioUrl } : q
+          )
+        }));
+      }
+    } catch (error) {
+      console.error('Audio generation error:', error);
+    }
+  };
+
+  // Text'i ses'e çevir
+  const generateAudio = async (text: string): Promise<string> => {
+    try {
+      const response = await fetch('http://localhost:8005/text-to-speech', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          text: text,
+          voice_id: 'EXAVITQu4vr4xnSDxMaL' // Bella voice
+        })
+      });
+      
+      if (!response.ok) {
+        throw new Error('TTS error');
+      }
+      
+      const data = await response.json();
+      return `data:audio/mpeg;base64,${data.audio_data}`;
+    } catch (error) {
+      console.error('TTS error:', error);
+      return '';
+    }
+  };
+
+  // Yeni speaking kayıt fonksiyonları
   const startSpeakingRecording = async () => {
     try {
       setSpeakingError('');
@@ -71,42 +187,19 @@ const GeneralTestPage: React.FC = () => {
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
       });
-      mediaRecorderRef.current = new MediaRecorder(stream, { mimeType: 'audio/webm' });
-      mediaRecorderRef.current.ondataavailable = (event) => {
-        if (event.data.size > 0) audioChunksRef.current.push(event.data);
+      mediaRecorderRef.current = new MediaRecorder(stream);
+      mediaRecorderRef.current.ondataavailable = (e) => {
+        if (e.data.size > 0) audioChunksRef.current.push(e.data);
       };
       mediaRecorderRef.current.onstop = () => {
-        stream.getTracks().forEach(t => t.stop());
+        stream.getTracks().forEach(track => track.stop());
         processSpeakingAudio();
       };
-      mediaRecorderRef.current.start(1000);
+      
+      mediaRecorderRef.current.start();
       setIsRecording(true);
-
-      // Start browser STT in parallel as a fallback (Chrome)
-      try {
-        const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-        if (SpeechRecognition) {
-          const recognition = new SpeechRecognition();
-          browserRecognitionRef.current = recognition;
-          browserTranscriptRef.current = '';
-          recognition.lang = 'en-US';
-          recognition.interimResults = true;
-          recognition.continuous = true;
-          recognition.onresult = (event: any) => {
-            let chunk = '';
-            for (let i = event.resultIndex; i < event.results.length; i++) {
-              const res = event.results[i];
-              const textPiece = res[0]?.transcript || '';
-              chunk += textPiece + (res.isFinal ? ' ' : ' ');
-            }
-            if (chunk) browserTranscriptRef.current = (browserTranscriptRef.current + ' ' + chunk).trim();
-          };
-          recognition.onerror = () => {};
-          recognition.start();
-        }
-      } catch {}
     } catch (e: any) {
-      setSpeakingError('Mikrofon erişimi başarısız. Tarayıcıdan izin verin.');
+      setSpeakingError(e?.message || 'Mikrofon erişim hatası');
     }
   };
 
@@ -115,79 +208,61 @@ const GeneralTestPage: React.FC = () => {
       mediaRecorderRef.current.stop();
       setIsRecording(false);
     }
-    // Stop browser STT fallback
-    try {
-      if (browserRecognitionRef.current) {
-        browserRecognitionRef.current.onresult = null;
-        browserRecognitionRef.current.onerror = null;
-        browserRecognitionRef.current.stop();
-      }
-    } catch {}
   };
 
-  const processSpeakingAudio = async () => {
-    setIsProcessingSpeech(true);
-    setSpeakingError('');
+  const processSpeakingAudio = () => {
     try {
       if (audioChunksRef.current.length === 0) throw new Error('Ses yakalanamadı');
+      
       const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-      if (audioBlob.size < 100) throw new Error('Ses dosyası çok küçük');
       const reader = new FileReader();
-      reader.onloadend = async () => {
+      reader.onload = async () => {
         try {
-          const base64 = (reader.result as string).split(',')[1];
-          const sttRes = await fetch('http://localhost:8000/api/speaking/speech-to-text', {
+          const base64Audio = (reader.result as string).split(',')[1];
+          
+          const response = await fetch('http://localhost:8005/speech-to-text', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ audio_data: base64, format: 'webm' })
+            body: JSON.stringify({ audio_data: base64Audio, format: 'webm' })
           });
-          if (!sttRes.ok) throw new Error(`STT hata: ${sttRes.status}`);
-          const data = await sttRes.json();
-          const text: string = data.text || '';
-          if (!text.trim()) throw new Error('Konuşma algılanamadı');
-          // Esas doldurma: aktif textarea'yı konuşma ile doldur
-          if (speakingPart === 1 && activeRecordingIndex !== null) {
-            setPart1Answers(prev => {
-              const copy = [...prev];
-              copy[activeRecordingIndex] = text;
-              return copy;
-            });
-          } else if (speakingPart === 3 && activeRecordingIndex !== null) {
-            setPart3Answers(prev => {
-              const copy = [...prev];
-              copy[activeRecordingIndex] = text;
-              return copy;
-            });
+          
+          if (!response.ok) {
+            throw new Error(`STT API error: ${response.status}`);
+          }
+          
+          const data = await response.json();
+          const text = (data.text || '').trim();
+          
+          if (!text) {
+            throw new Error('Boş metin');
+          }
+
+          // Yeni state sistemi ile güncelleme
+          if (speakingPart === 1) {
+            setSpeakingAnswers(prev => ({
+              ...prev,
+              part1: prev.part1.map((answer, i) => 
+                i === currentSpeakingQuestion ? text : answer
+              )
+            }));
           } else if (speakingPart === 2) {
-            setTranscripts(prev => ({ ...prev, part2: prev.part2 ? prev.part2 + ' ' + text : text }));
+            setSpeakingAnswers(prev => ({
+              ...prev,
+              part2: prev.part2 + (prev.part2 ? ' ' : '') + text
+            }));
+          } else if (speakingPart === 3) {
+            setSpeakingAnswers(prev => ({
+              ...prev,
+              part3: prev.part3.map((answer, i) => 
+                i === currentSpeakingQuestion ? text : answer
+              )
+            }));
           }
+          
         } catch (err: any) {
-          // Fallback: use browser SpeechRecognition transcript if available
-          const fallback = (browserTranscriptRef.current || '').trim();
-          if (fallback) {
-            if (speakingPart === 1 && activeRecordingIndex !== null) {
-              setPart1Answers(prev => {
-                const copy = [...prev];
-                copy[activeRecordingIndex] = fallback;
-                return copy;
-              });
-            } else if (speakingPart === 3 && activeRecordingIndex !== null) {
-              setPart3Answers(prev => {
-                const copy = [...prev];
-                copy[activeRecordingIndex] = fallback;
-                return copy;
-              });
-            } else if (speakingPart === 2) {
-              setTranscripts(prev => ({ ...prev, part2: prev.part2 ? prev.part2 + ' ' + fallback : fallback }));
-            }
-            setUsingBrowserSTT(true);
-            setSpeakingError('');
-          } else {
-            setSpeakingError(err?.message || 'STT hata');
-          }
+          setSpeakingError(err?.message || 'STT hata');
         } finally {
           setIsProcessingSpeech(false);
-          setActiveRecordingIndex(null);
         }
       };
       reader.readAsDataURL(audioBlob);
@@ -197,9 +272,40 @@ const GeneralTestPage: React.FC = () => {
     }
   };
 
+  // Speaking değerlendirme fonksiyonu
+  const evaluateSpeakingTest = async () => {
+    try {
+      setSpeakingEvaluating(true);
+      setSpeakingError('');
+      
+      const response = await fetch('http://localhost:8005/evaluate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          part1_answers: speakingAnswers.part1,
+          part2_answer: speakingAnswers.part2,
+          part3_answers: speakingAnswers.part3,
+          questions: speakingQuestions
+        })
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Değerlendirme hatası: ${response.status}`);
+      }
+      
+      const evaluation = await response.json();
+      setSpeakingEvaluation(evaluation);
+      
+    } catch (error: any) {
+      setSpeakingError(error.message || 'Değerlendirme hatası');
+    } finally {
+      setSpeakingEvaluating(false);
+    }
+  };
+
   // Writing modülü için durumlar
   const [writingMode, setWritingMode] = useState<string>('academic'); // academic | general
-  const [writingTask, setWritingTask] = useState<string>('task1'); // task1 | task2
+  // const [, setWritingTask] = useState<string>('task1'); // task1 | task2
   const [writingTopics, setWritingTopics] = useState<{[key: string]: string}>({});
   const [writingEssays, setWritingEssays] = useState<{[key: string]: string}>({});
   const [writingResults, setWritingResults] = useState<{[key: string]: any}>({});
@@ -261,6 +367,19 @@ const GeneralTestPage: React.FC = () => {
     return () => clearInterval(interval);
   }, [testStarted, testCompleted, isPaused, timeLeft, currentStep, steps]);
 
+  // Sınav tamamlandıysa sonuç sayfasını göster
+  useEffect(() => {
+    // Bu effect yalnızca sonuç ekranına ilk girişte bir kez çalışsın
+    if (!testCompleted) return;
+    
+    const onceKey = 'general_test_saved_once';
+    if (sessionStorage.getItem(onceKey)) return;
+    sessionStorage.setItem(onceKey, '1');
+    // Basit placeholder skorlar: Reading sonucu varsa kullan, diğerleri 0
+    const estimatedReading = readingResult?.band_estimate || 0;
+    completeGeneralMockAndSave({ reading: Number(estimatedReading) || 0 });
+  }, [testCompleted, readingResult?.band_estimate]);
+
   const startTest = () => {
     setTestStarted(true);
     setCurrentStep(0);
@@ -302,6 +421,135 @@ const GeneralTestPage: React.FC = () => {
       console.log('✅ Genel deneme kaydedildi:', data);
     } catch (e) {
       console.warn('Genel deneme kaydetme hatası:', e);
+    }
+  };
+
+  // Genel deneme için detaylı IELTS değerlendirmesi
+  const evaluateGeneralTest = async () => {
+    try {
+      setIsEvaluatingGeneralTest(true);
+      
+      // Mevcut sonuçları topla
+      const results = {
+        reading: readingResult?.band_estimate || 0,
+        listening: 0, // Listening henüz implement edilmedi
+        writing: 0, // Writing henüz implement edilmedi
+        speaking: speakingEvaluation?.overall_band || 0
+      };
+
+      // Overall skor hesapla
+      const overall = (results.reading + results.listening + results.writing + results.speaking) / 4;
+
+      // AI ile detaylı değerlendirme yap
+      const evaluationPrompt = `
+        IELTS Genel Deneme Değerlendirmesi yapın. Kullanıcının sonuçları:
+        
+        Reading: ${results.reading}/9
+        Listening: ${results.listening}/9 (henüz test edilmedi)
+        Writing: ${results.writing}/9 (henüz test edilmedi)
+        Speaking: ${results.speaking}/9
+        
+        Overall Band Score: ${overall.toFixed(1)}/9
+        
+        Lütfen aşağıdaki formatta detaylı değerlendirme yapın:
+        
+        {
+          "detailed_evaluation": "Genel değerlendirme metni...",
+          "module_evaluations": {
+            "reading": {
+              "score": ${results.reading},
+              "feedback": "Reading modülü için detaylı geri bildirim..."
+            },
+            "listening": {
+              "score": ${results.listening},
+              "feedback": "Listening modülü için detaylı geri bildirim..."
+            },
+            "writing": {
+              "score": ${results.writing},
+              "feedback": "Writing modülü için detaylı geri bildirim..."
+            },
+            "speaking": {
+              "score": ${results.speaking},
+              "feedback": "Speaking modülü için detaylı geri bildirim..."
+            }
+          },
+          "recommendations": [
+            "Öneri 1: Reading için...",
+            "Öneri 2: Speaking için...",
+            "Öneri 3: Genel gelişim için..."
+          ]
+        }
+        
+        Türkçe yanıt verin ve IELTS band score sistemine uygun değerlendirme yapın.
+      `;
+
+      // AI değerlendirmesi için backend'e istek gönder
+      const response = await fetch('http://localhost:8005/evaluate-general-test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          results: results,
+          overall_score: overall,
+          evaluation_prompt: evaluationPrompt
+        })
+      });
+
+      if (response.ok) {
+        const evaluation = await response.json();
+        setGeneralTestResults({
+          reading: results.reading,
+          listening: results.listening,
+          writing: results.writing,
+          speaking: results.speaking,
+          overall: overall,
+          detailedEvaluation: evaluation.detailed_evaluation || 'Detaylı değerlendirme hazırlanıyor...',
+          moduleEvaluations: evaluation.module_evaluations || {
+            reading: { score: results.reading, feedback: 'Reading modülü değerlendirmesi hazırlanıyor...' },
+            listening: { score: results.listening, feedback: 'Listening modülü henüz test edilmedi.' },
+            writing: { score: results.writing, feedback: 'Writing modülü henüz test edilmedi.' },
+            speaking: { score: results.speaking, feedback: 'Speaking modülü değerlendirmesi hazırlanıyor...' }
+          }
+        });
+        setShowDetailedEvaluation(true);
+      } else {
+        // Fallback: Basit değerlendirme
+        setGeneralTestResults({
+          reading: results.reading,
+          listening: results.listening,
+          writing: results.writing,
+          speaking: results.speaking,
+          overall: overall,
+          detailedEvaluation: `IELTS Genel Deneme Sonucunuz: ${overall.toFixed(1)}/9. Reading: ${results.reading}, Speaking: ${results.speaking}. Diğer modüller henüz tamamlanmadı.`,
+          moduleEvaluations: {
+            reading: { score: results.reading, feedback: `Reading modülünde ${results.reading}/9 puan aldınız.` },
+            listening: { score: results.listening, feedback: 'Listening modülü henüz test edilmedi.' },
+            writing: { score: results.writing, feedback: 'Writing modülü henüz test edilmedi.' },
+            speaking: { score: results.speaking, feedback: `Speaking modülünde ${results.speaking}/9 puan aldınız.` }
+          }
+        });
+        setShowDetailedEvaluation(true);
+      }
+
+    } catch (error) {
+      console.error('Genel deneme değerlendirme hatası:', error);
+      // Hata durumunda basit sonuç göster
+      setGeneralTestResults({
+        reading: readingResult?.band_estimate || 0,
+        listening: 0,
+        writing: 0,
+        speaking: speakingEvaluation?.overall_band || 0,
+        overall: ((readingResult?.band_estimate || 0) + (speakingEvaluation?.overall_band || 0)) / 2,
+        detailedEvaluation: 'Değerlendirme hazırlanırken bir hata oluştu.',
+        moduleEvaluations: {
+          reading: { score: readingResult?.band_estimate || 0, feedback: 'Reading modülü değerlendirmesi.' },
+          listening: { score: 0, feedback: 'Listening modülü henüz test edilmedi.' },
+          writing: { score: 0, feedback: 'Writing modülü henüz test edilmedi.' },
+          speaking: { score: speakingEvaluation?.overall_band || 0, feedback: 'Speaking modülü değerlendirmesi.' }
+        }
+      });
+      setShowDetailedEvaluation(true);
+    } finally {
+      setIsEvaluatingGeneralTest(false);
     }
   };
 
@@ -520,46 +768,6 @@ const GeneralTestPage: React.FC = () => {
     }
   };
 
-  // Reading: AI ile IELTS Academic test üret
-  const generateAIReadingTest = async () => {
-    try {
-      setReadingLoading(true);
-      setReadingError('');
-      setReadingResult(null);
-      setReadingAnswers({});
-      setCurrentReadingPassage(0); // İlk sayfaya dön
-
-      // IELTS Academic Reading formatında test üret
-      const response = await fetch('http://localhost:8001/generate-ielts-academic', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          topic: 'Academic', 
-          difficulty: 'Medium',
-          format: 'ielts_academic',
-          passages: 3,
-          total_questions: 40
-        })
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setReadingTests(prev => {
-          const exists = prev.find(p => p.id === data.id);
-          return exists ? prev : [data, ...prev];
-        });
-        setReadingSelectedId(data.id);
-        setReadingTest(data);
-      } else {
-        const err = await response.text();
-        setReadingError(err || 'AI test üretimi başarısız.');
-      }
-    } catch (e: any) {
-      setReadingError(e?.message || 'AI test üretim hatası');
-    } finally {
-      setReadingLoading(false);
-    }
-  };
 
   // Listening test başlatma fonksiyonu
   const startListeningTest = async () => {
@@ -756,18 +964,8 @@ const GeneralTestPage: React.FC = () => {
     );
   }
 
-  // Sınav tamamlandıysa sonuç sayfasını göster
+
   if (testCompleted) {
-    // Ortalama band değerini hesapla (şimdilik placeholder: readingResult vs yoksa null)
-    useEffect(() => {
-      // Bu effect yalnızca sonuç ekranına ilk girişte bir kez çalışsın
-      const onceKey = 'general_test_saved_once';
-      if (sessionStorage.getItem(onceKey)) return;
-      sessionStorage.setItem(onceKey, '1');
-      // Basit placeholder skorlar: Reading sonucu varsa kullan, diğerleri 0
-      const estimatedReading = readingResult?.band_estimate || 0;
-      completeGeneralMockAndSave({ reading: Number(estimatedReading) || 0 });
-    }, []);
     return (
       <div className="container">
         <div className="text-center mb-4">
@@ -778,6 +976,7 @@ const GeneralTestPage: React.FC = () => {
           <p className="subtitle">Tebrikler! IELTS deneme sınavını başarıyla tamamladınız.</p>
         </div>
 
+        {!showDetailedEvaluation ? (
         <div className="card">
           <h2>📊 Sınav Sonuçları</h2>
           <div className="results-grid">
@@ -786,16 +985,104 @@ const GeneralTestPage: React.FC = () => {
                 <h3>{step.name}</h3>
                 <div className="result-score">
                   <span className="score-label">Puan:</span>
-                  <span className="score-value">-</span>
+                    <span className="score-value">
+                      {index === 0 && readingResult ? readingResult.band_estimate?.toFixed(1) || '0.0' : 
+                       index === 3 && speakingEvaluation ? speakingEvaluation.overall_band?.toFixed(1) || '0.0' : 
+                       '-'}
+                    </span>
                 </div>
-                <p className="result-note">Bu modül henüz geliştirilme aşamasındadır.</p>
+                  <p className="result-note">
+                    {index === 0 && readingResult ? 'Reading modülü tamamlandı' :
+                     index === 3 && speakingEvaluation ? 'Speaking modülü tamamlandı' :
+                     'Bu modül henüz geliştirilme aşamasındadır.'}
+                  </p>
               </div>
             ))}
           </div>
 
           <div className="total-score">
-            <h3>Genel Puan: -</h3>
-            <p>Detaylı değerlendirme için her modülü ayrı ayrı kullanabilirsiniz.</p>
+              <h3>Genel Puan: {generalTestResults ? generalTestResults.overall.toFixed(1) : '-'}</h3>
+              <p>Detaylı IELTS değerlendirmesi için aşağıdaki butona tıklayın.</p>
+            </div>
+
+            <div className="text-center mt-4">
+              <button 
+                className="btn btn-primary" 
+                onClick={evaluateGeneralTest}
+                disabled={isEvaluatingGeneralTest}
+                style={{ marginRight: '10px' }}
+              >
+                {isEvaluatingGeneralTest ? (
+                  <>🔄 Değerlendiriliyor...</>
+                ) : (
+                  <>📊 IELTS Puanımı Hesapla</>
+                )}
+              </button>
+              <button className="btn btn-outline" onClick={resetTest}>
+                <RotateCcw className="icon" />
+                Yeni Deneme Başlat
+              </button>
+              <Link to="/" className="btn btn-outline" style={{ marginLeft: '10px' }}>
+                Ana Sayfaya Dön
+              </Link>
+            </div>
+          </div>
+        ) : (
+          <div className="card">
+            <h2>🎯 Detaylı IELTS Değerlendirmesi</h2>
+            
+            {generalTestResults && (
+              <>
+                <div className="ielts-scores-overview">
+                  <div className="score-grid">
+                    <div className="score-item">
+                      <span className="score-label">Reading:</span>
+                      <span className="score-value">{generalTestResults.reading.toFixed(1)}</span>
+                    </div>
+                    <div className="score-item">
+                      <span className="score-label">Listening:</span>
+                      <span className="score-value">{generalTestResults.listening.toFixed(1)}</span>
+                    </div>
+                    <div className="score-item">
+                      <span className="score-label">Writing:</span>
+                      <span className="score-value">{generalTestResults.writing.toFixed(1)}</span>
+                    </div>
+                    <div className="score-item">
+                      <span className="score-label">Speaking:</span>
+                      <span className="score-value">{generalTestResults.speaking.toFixed(1)}</span>
+                    </div>
+                    <div className="score-item overall">
+                      <span className="score-label">Overall:</span>
+                      <span className="score-value">{generalTestResults.overall.toFixed(1)}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="detailed-evaluation">
+                  <h3>📝 Genel Değerlendirme</h3>
+                  <p>{generalTestResults.detailedEvaluation}</p>
+                </div>
+
+                <div className="module-evaluations">
+                  <h3>📚 Modül Bazında Değerlendirme</h3>
+                  <div className="evaluation-grid">
+                    <div className="evaluation-card">
+                      <h4>📖 Reading ({generalTestResults.moduleEvaluations.reading.score.toFixed(1)})</h4>
+                      <p>{generalTestResults.moduleEvaluations.reading.feedback}</p>
+                    </div>
+                    <div className="evaluation-card">
+                      <h4>🎧 Listening ({generalTestResults.moduleEvaluations.listening.score.toFixed(1)})</h4>
+                      <p>{generalTestResults.moduleEvaluations.listening.feedback}</p>
+                    </div>
+                    <div className="evaluation-card">
+                      <h4>✍️ Writing ({generalTestResults.moduleEvaluations.writing.score.toFixed(1)})</h4>
+                      <p>{generalTestResults.moduleEvaluations.writing.feedback}</p>
+                    </div>
+                    <div className="evaluation-card">
+                      <h4>🗣️ Speaking ({generalTestResults.moduleEvaluations.speaking.score.toFixed(1)})</h4>
+                      <p>{generalTestResults.moduleEvaluations.speaking.feedback}</p>
+                    </div>
+                  </div>
           </div>
 
           <div className="text-center mt-4">
@@ -803,11 +1090,17 @@ const GeneralTestPage: React.FC = () => {
               <RotateCcw className="icon" />
               Yeni Deneme Başlat
             </button>
-            <Link to="/" className="btn btn-outline">
+                  <Link to="/dashboard" className="btn btn-outline" style={{ marginLeft: '10px' }}>
+                    Dashboard'a Git
+                  </Link>
+                  <Link to="/" className="btn btn-outline" style={{ marginLeft: '10px' }}>
               Ana Sayfaya Dön
             </Link>
           </div>
+              </>
+            )}
         </div>
+        )}
       </div>
     );
   }
@@ -1458,154 +1751,18 @@ const GeneralTestPage: React.FC = () => {
                           borderRadius: '25px'
                         }}
                       >
-                        {readingLoading ? '🔄 Değerlendiriliyor...' : '📊 Testi Tamamla ve Değerlendir'}
+                        {readingLoading ? '🔄 Değerlendiriliyor...' : '✅ Testi Tamamla'}
                     </button>
                     {readingResult && (
-                        <button 
-                          className="btn btn-secondary" 
-                          onClick={() => { 
-                            setReadingResult(null); 
-                            setReadingAnswers({}); 
-                            setCurrentReadingPassage(0);
-                          }}
-                          style={{
-                            padding: '15px 30px', 
-                            fontSize: '18px',
-                            borderRadius: '25px'
-                          }}
-                        >
-                          🔄 Yeniden Başla
-                      </button>
+                        <div style={{ textAlign: 'center', marginTop: '15px' }}>
+                          <p style={{ color: '#8B5CF6', fontSize: '16px', fontWeight: '600' }}>
+                            ✅ Reading testi tamamlandı! Sonraki modüle geçebilirsiniz.
+                          </p>
+                        </div>
                     )}
                   </div>
                   )}
 
-                  {readingResult && (
-                    <div className="reading-result" style={{
-                      marginTop:30, 
-                      background: '#f8f9fa', 
-                      padding: '25px', 
-                      borderRadius: '12px', 
-                      border: '2px solid #8B5CF6'
-                    }}>
-                      <h4 style={{color: '#8B5CF6', fontSize: '20px', marginBottom: '20px'}}>📊 Test Sonuçları</h4>
-                      
-                      {/* Ana İstatistikler */}
-                      {(() => {
-                        // Boş soruları say
-                        const blankCount = readingTest?.questions?.filter((q: any) => {
-                          const userAnswer = readingAnswers[q.id];
-                          return !userAnswer || userAnswer.trim() === '';
-                        }).length || 0;
-                        
-                        const wrongCount = readingResult?.scaled?.total - readingResult?.scaled?.correct - blankCount;
-                        
-                        return (
-                          <div className="result-stats" style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '15px', marginBottom: '30px'}}>
-                            <div className="stat-item" style={{
-                              background: 'white',
-                              padding: '15px',
-                              borderRadius: '8px',
-                              border: '1px solid #e0e0e0',
-                              textAlign: 'center'
-                            }}>
-                              <strong style={{color: '#8B5CF6'}}>Doğru Cevaplar</strong><br/>
-                              <span style={{fontSize: '24px', fontWeight: 'bold', color: '#28a745'}}>
-                                {readingResult?.scaled?.correct}
-                              </span>
-                              <span style={{fontSize: '16px', color: '#666'}}> / {readingResult?.scaled?.total}</span>
-                            </div>
-                            <div className="stat-item" style={{
-                              background: 'white',
-                              padding: '15px',
-                              borderRadius: '8px',
-                              border: '1px solid #e0e0e0',
-                              textAlign: 'center'
-                            }}>
-                              <strong style={{color: '#8B5CF6'}}>Yanlış Cevaplar</strong><br/>
-                              <span style={{fontSize: '24px', fontWeight: 'bold', color: '#dc3545'}}>
-                                {wrongCount}
-                              </span>
-                              <span style={{fontSize: '16px', color: '#666'}}> / {readingResult?.scaled?.total}</span>
-                            </div>
-                            <div className="stat-item" style={{
-                              background: 'white',
-                              padding: '15px',
-                              borderRadius: '8px',
-                              border: '1px solid #e0e0e0',
-                              textAlign: 'center'
-                            }}>
-                              <strong style={{color: '#8B5CF6'}}>Boş Bırakılanlar</strong><br/>
-                              <span style={{fontSize: '24px', fontWeight: 'bold', color: '#ffc107'}}>
-                                {blankCount}
-                              </span>
-                              <span style={{fontSize: '16px', color: '#666'}}> / {readingResult?.scaled?.total}</span>
-                            </div>
-                          </div>
-                        );
-                      })()}
-                      
-                      {/* IELTS Band Score */}
-                      <div className="result-stats" style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '15px', marginBottom: '30px'}}>
-                        <div className="stat-item" style={{
-                          background: 'white',
-                          padding: '15px',
-                          borderRadius: '8px',
-                          border: '1px solid #e0e0e0',
-                          textAlign: 'center'
-                        }}>
-                          <strong style={{color: '#8B5CF6'}}>IELTS Band Skoru</strong><br/>
-                          <span style={{fontSize: '32px', fontWeight: 'bold', color: '#8B5CF6'}}>
-                            {readingResult?.band_estimate}
-                          </span>
-                          <span style={{fontSize: '14px', color: '#666', display: 'block'}}>Band Score</span>
-                        </div>
-                        <div className="stat-item" style={{
-                          background: 'white',
-                          padding: '15px',
-                          borderRadius: '8px',
-                          border: '1px solid #e0e0e0',
-                          textAlign: 'center'
-                        }}>
-                          <strong style={{color: '#8B5CF6'}}>Başarı Oranı</strong><br/>
-                          <span style={{fontSize: '24px', fontWeight: 'bold', color: '#8B5CF6'}}>
-                            {Math.round((readingResult?.scaled?.correct / readingResult?.scaled?.total) * 100)}%
-                          </span>
-                        </div>
-                      </div>
-
-
-                      {/* Geri Bildirim */}
-                      {readingResult?.feedback && (
-                        <div className="feedback-section" style={{
-                          background: 'white',
-                          padding: '20px',
-                          borderRadius: '8px',
-                          border: '1px solid #e0e0e0'
-                        }}>
-                          <h5 style={{color: '#8B5CF6', marginBottom: '15px'}}>💡 Geri Bildirim</h5>
-                          <div className="feedback-content" style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px'}}>
-                            <div className="strengths">
-                              <h6 style={{color: '#28a745', marginBottom: '10px'}}>✅ Güçlü Yönler:</h6>
-                              <ul style={{margin: 0, paddingLeft: '20px'}}>
-                                {(readingResult.feedback.strengths || []).map((s: string, i: number)=> 
-                                  <li key={`s-${i}`} style={{marginBottom: '5px'}}>{s}</li>
-                                )}
-                          </ul>
-                        </div>
-                            <div className="improvements">
-                              <h6 style={{color: '#dc3545', marginBottom: '10px'}}>📈 Gelişim Alanları:</h6>
-                              <ul style={{margin: 0, paddingLeft: '20px'}}>
-                                {(readingResult.feedback.improvements || []).map((s: string, i: number)=> 
-                                  <li key={`i-${i}`} style={{marginBottom: '5px'}}>{s}</li>
-                                )}
-                              </ul>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
                 </div>
               )}
             </div>
@@ -1690,7 +1847,7 @@ const GeneralTestPage: React.FC = () => {
                     </div>
                   )}
                 </div>
-              </div>
+                  </div>
 
               {writingError && (
                 <div className="error-message" style={{color:'#d33', background:'#ffe6e6', padding:'10px', borderRadius:'5px', margin:'10px 0'}}>
@@ -1845,92 +2002,14 @@ const GeneralTestPage: React.FC = () => {
                               marginBottom: '20px'
                             }}
                           >
-                            {writingLoading ? '🔄 Değerlendiriliyor...' : '📊 Değerlendir'}
+                            {writingLoading ? '🔄 Değerlendiriliyor...' : '✅ Testi Tamamla'}
                           </button>
 
                           {result && (
-                            <div className="result-section" style={{
-                              background: '#f8f9fa',
-                              padding: '25px',
-                              borderRadius: '12px',
-                              border: '2px solid #8B5CF6',
-                              marginTop: '20px',
-                              textAlign: 'left'
-                            }}>
-                              <h5 style={{color: '#8B5CF6', fontSize: '18px', marginBottom: '20px', textAlign: 'center'}}>
-                                📊 Task {currentWritingTask + 1} Sonuçları
-                              </h5>
-                              
-                              {/* Band Score */}
-                              <div style={{textAlign: 'center', marginBottom: '20px'}}>
-                                <div style={{
-                                  background: 'white',
-                                  padding: '15px',
-                                  borderRadius: '8px',
-                                  border: '1px solid #e0e0e0',
-                                  display: 'inline-block'
-                                }}>
-                                  <strong style={{color: '#8B5CF6'}}>Band Score:</strong>
-                                  <span style={{fontSize: '32px', fontWeight: 'bold', color: '#8B5CF6', marginLeft: '10px'}}>
-                                    {result.overall_band || 'N/A'}
-                                  </span>
-                                </div>
-                              </div>
-
-                              {/* Criteria Scores */}
-                              {result.criteria && (
-                                <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '15px', marginBottom: '20px'}}>
-                                  {Object.entries(result.criteria).map(([criterion, score]) => (
-                                    <div key={criterion} style={{
-                                      background: 'white',
-                                      padding: '15px',
-                                      borderRadius: '8px',
-                                      border: '1px solid #e0e0e0',
-                                      textAlign: 'center'
-                                    }}>
-                                      <strong style={{color: '#8B5CF6'}}>{criterion}</strong><br/>
-                                      <span style={{fontSize: '24px', fontWeight: 'bold', color: '#8B5CF6'}}>
-                                        {score as number}
-                                      </span>
-                                    </div>
-                                  ))}
-                                </div>
-                              )}
-
-                              {/* Feedback */}
-                              <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px'}}>
-                                {result.strengths && result.strengths.length > 0 && (
-                        <div>
-                                    <h6 style={{color: '#28a745', marginBottom: '10px'}}>✅ Güçlü Yönler:</h6>
-                                    <ul style={{margin: 0, paddingLeft: '20px', fontSize: '14px'}}>
-                                      {result.strengths.map((strength: string, i: number) => (
-                                        <li key={i} style={{marginBottom: '5px'}}>{strength}</li>
-                                      ))}
-                          </ul>
-                        </div>
-                      )}
-                                {result.weaknesses && result.weaknesses.length > 0 && (
-                                  <div>
-                                    <h6 style={{color: '#dc3545', marginBottom: '10px'}}>🔧 Gelişim Alanları:</h6>
-                                    <ul style={{margin: 0, paddingLeft: '20px', fontSize: '14px'}}>
-                                      {result.weaknesses.map((weakness: string, i: number) => (
-                                        <li key={i} style={{marginBottom: '5px'}}>{weakness}</li>
-                                      ))}
-                                    </ul>
-                    </div>
-                  )}
-                              </div>
-
-                              {result.suggestions && result.suggestions.length > 0 && (
-                                <div style={{marginTop: '20px'}}>
-                                  <h6 style={{color: '#8B5CF6', marginBottom: '10px'}}>💡 Öneriler:</h6>
-                                  <ul style={{margin: 0, paddingLeft: '20px', fontSize: '14px'}}>
-                                    {result.suggestions.map((suggestion: string, i: number) => (
-                                      <li key={i} style={{marginBottom: '5px'}}>{suggestion}</li>
-                                    ))}
-                                  </ul>
-                                </div>
-                              )}
+                            <div style={{ textAlign: 'center', marginTop: '15px' }}>
+                              <p style={{ color: '#8B5CF6', fontSize: '16px', fontWeight: '600' }}>
+                                ✅ Writing testi tamamlandı! Sonraki modüle geçebilirsiniz.
+                              </p>
                             </div>
                           )}
                         </div>
@@ -1996,118 +2075,331 @@ const GeneralTestPage: React.FC = () => {
             </div>
           ) : steps[currentStep].name === 'Speaking' ? (
             <div className="speaking-module">
-              <div className="ielts-instructions">
-                <h3>🗣️ IELTS Speaking Test</h3>
-                <p>3 bölümden oluşur: Part 1 (Giriş ve Röportaj), Part 2 (Cue Card), Part 3 (Tartışma).</p>
-                <div className="section-controls" style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                  <button className={`btn ${speakingPart === 1 ? 'btn-primary' : 'btn-outline'}`} onClick={() => setSpeakingPart(1)}>Part 1</button>
-                  <button className={`btn ${speakingPart === 2 ? 'btn-primary' : 'btn-outline'}`} onClick={() => setSpeakingPart(2)}>Part 2</button>
-                  <button className={`btn ${speakingPart === 3 ? 'btn-primary' : 'btn-outline'}`} onClick={() => setSpeakingPart(3)}>Part 3</button>
+              {!speakingTestStarted ? (
+                <div className="text-center" style={{ padding: '40px' }}>
+                  <h3>🗣️ IELTS Speaking Test</h3>
+                  <p style={{ marginBottom: '30px', color: '#666' }}>
+                    AI ile oluşturulan 3 bölümlü IELTS Speaking testi. Her soru ses olarak dinlenebilir ve cevabınız kayıt edilir.
+                  </p>
+                  <button 
+                    className="btn btn-primary" 
+                    onClick={startSpeakingTest}
+                    disabled={speakingLoading}
+                    style={{ fontSize: '18px', padding: '15px 30px' }}
+                  >
+                    {speakingLoading ? 'Test Oluşturuluyor...' : '🚀 Speaking Testini Başlat'}
+                  </button>
+                  {speakingError && (
+                    <div className="error-message" style={{ marginTop: '20px', color: '#d33' }}>
+                      ❌ {speakingError}
+                    </div>
+                  )}
                 </div>
-              </div>
-
-              {speakingError && (
-                <div className="error-message" style={{color:'#d33', background:'#ffe6e6', padding:10, borderRadius:6, margin:'10px 0'}}>
-                  ❌ {speakingError}
-                </div>
-              )}
-
-              {/* Content per Part */}
-              {speakingPart === 1 && (
-                <div className="card" style={{ marginTop: 10 }}>
-                  <h4>Part 1: Introduction and Interview</h4>
-                  <div style={{ marginTop: 10 }}>
-                    {speakingPrompts.part1.map((q, i) => (
-                      <div key={`p1_${i}`} style={{ marginBottom: 16 }}>
-                        <div style={{ marginBottom: 6, fontWeight: 500 }}>
-                          {i + 1}. {q}
-                        </div>
-                        <textarea
-                          value={part1Answers[i]}
-                          readOnly
-                          placeholder="Konuşmanız buraya otomatik yazılacak (elle yazılamaz)"
-                          style={{ width:'100%', minHeight: 90, padding: 12, border:'1px solid #e0e0e0', borderRadius: 8, background:'#fafafa', cursor:'not-allowed' }}
-                        />
-                        <div style={{ marginTop: 8 }}>
-                          <button
-                            className="btn btn-primary"
-                            onClick={() => {
-                              setActiveRecordingIndex(i);
-                              if (isRecording) { stopSpeakingRecording(); } else { startSpeakingRecording(); }
-                            }}
-                            disabled={isProcessingSpeech}
-                            style={{ display:'inline-flex', alignItems:'center', gap:8 }}
-                          >
-                            {isRecording && activeRecordingIndex === i ? <Square className="icon" /> : <Mic className="icon" />}
-                            {isRecording && activeRecordingIndex === i ? 'Kaydı Durdur' : 'Kaydı Başlat'}
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {speakingPart === 2 && (
-                <div className="card" style={{ marginTop: 10 }}>
-                  <h4>Part 2: Long Turn (Cue Card)</h4>
-                  <div style={{ background:'#f8f9fa', border:'1px solid #e0e0e0', borderRadius:8, padding:14 }}>
-                    <strong>Topic:</strong> {speakingPrompts.part2.topic}
-                    <ul style={{ marginTop: 8 }}>
-                      {speakingPrompts.part2.bullets.map((b, i) => (
-                        <li key={i}>{b}</li>
-                      ))}
-                    </ul>
-                  </div>
-                  <div style={{ marginTop: 12 }}>
-                    <textarea
-                      value={transcripts.part2}
-                      readOnly
-                      placeholder="Konuşmanız buraya otomatik yazılacak (elle yazılamaz)"
-                      style={{ width:'100%', minHeight: 120, padding: 12, border:'1px solid #e0e0e0', borderRadius: 8, background:'#fafafa', cursor:'not-allowed' }}
-                    />
-                    <div style={{ display:'flex', gap:10, alignItems:'center', marginTop: 10 }}>
-                      <button className="btn btn-primary" onClick={() => { setActiveRecordingIndex(null); if (isRecording) { stopSpeakingRecording(); } else { startSpeakingRecording(); } }} disabled={isProcessingSpeech}>
-                        {isRecording ? 'Kaydı Durdur' : 'Kaydı Başlat'}
-                      </button>
-                      {isProcessingSpeech && <span style={{ color:'#666' }}>Ses işleniyor...</span>}
+              ) : (
+                <div>
+                  <div className="ielts-instructions">
+                    <h3>🗣️ IELTS Speaking Test - Part {speakingPart}</h3>
+                    <div className="section-controls" style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: '20px' }}>
+                      <button className={`btn ${speakingPart === 1 ? 'btn-primary' : 'btn-outline'}`} onClick={() => { setSpeakingPart(1); setCurrentSpeakingQuestion(0); }}>Part 1</button>
+                      <button className={`btn ${speakingPart === 2 ? 'btn-primary' : 'btn-outline'}`} onClick={() => { setSpeakingPart(2); setCurrentSpeakingQuestion(0); }}>Part 2</button>
+                      <button className={`btn ${speakingPart === 3 ? 'btn-primary' : 'btn-outline'}`} onClick={() => { setSpeakingPart(3); setCurrentSpeakingQuestion(0); }}>Part 3</button>
                     </div>
                   </div>
-                </div>
-              )}
 
-              {speakingPart === 3 && (
-                <div className="card" style={{ marginTop: 10 }}>
-                  <h4>Part 3: Discussion</h4>
-                  <div style={{ marginTop: 10 }}>
-                    {speakingPrompts.part3.map((q, i) => (
-                      <div key={`p3_${i}`} style={{ marginBottom: 16 }}>
-                        <div style={{ marginBottom: 6, fontWeight: 500 }}>
-                          {i + 1}. {q}
+                  {speakingError && (
+                    <div className="error-message" style={{color:'#d33', background:'#ffe6e6', padding:10, borderRadius:6, margin:'10px 0'}}>
+                      ❌ {speakingError}
+                    </div>
+                  )}
+
+                  {/* Yeni Speaking UI */}
+                  {speakingPart === 1 && (
+                    <div className="card" style={{ marginTop: 10 }}>
+                      <h4>Part 1: Introduction and Interview</h4>
+                      <p style={{ color: '#666', marginBottom: '20px' }}>
+                        Soru {currentSpeakingQuestion + 1} / {speakingQuestions.part1.length}
+                      </p>
+                      
+                      <div style={{ marginBottom: '20px' }}>
+                        <div style={{ marginBottom: '10px', fontWeight: 500 }}>
+                          {currentSpeakingQuestion + 1}. {speakingQuestions.part1[currentSpeakingQuestion]?.question}
                         </div>
+                        
+                        {/* Ses oynatma butonu */}
+                        {speakingQuestions.part1[currentSpeakingQuestion]?.audioUrl && (
+                          <button
+                            className="btn btn-secondary"
+                            onClick={() => {
+                              const audio = new Audio(speakingQuestions.part1[currentSpeakingQuestion].audioUrl);
+                              audio.play();
+                            }}
+                            style={{ marginBottom: '15px' }}
+                          >
+                            🔊 Soruyu Dinle
+                          </button>
+                        )}
+                        
+                        {/* Cevap textarea */}
                         <textarea
-                          value={part3Answers[i]}
-                          readOnly
-                          placeholder="Konuşmanız buraya otomatik yazılacak (elle yazılamaz)"
-                          style={{ width:'100%', minHeight: 90, padding: 12, border:'1px solid #e0e0e0', borderRadius: 8, background:'#fafafa', cursor:'not-allowed' }}
+                          value={speakingAnswers.part1[currentSpeakingQuestion] || ''}
+                          onChange={(e) => {
+                            setSpeakingAnswers(prev => ({
+                              ...prev,
+                              part1: prev.part1.map((answer, i) => 
+                                i === currentSpeakingQuestion ? e.target.value : answer
+                              )
+                            }));
+                          }}
+                          placeholder="Cevabınızı buraya yazın veya kayıt yapın"
+                          style={{ width:'100%', minHeight: 120, padding: 12, border:'1px solid #e0e0e0', borderRadius: 8, background:'#ffffff' }}
                         />
-                        <div style={{ marginTop: 8 }}>
+                        
+                        {/* Kayıt butonu */}
+                        <div style={{ marginTop: '15px', display: 'flex', gap: '10px' }}>
                           <button
                             className="btn btn-primary"
                             onClick={() => {
-                              setActiveRecordingIndex(i);
-                              if (isRecording) { stopSpeakingRecording(); } else { startSpeakingRecording(); }
+                              if (isRecording) { 
+                                stopSpeakingRecording(); 
+                              } else { 
+                                startSpeakingRecording(); 
+                              }
                             }}
                             disabled={isProcessingSpeech}
                             style={{ display:'inline-flex', alignItems:'center', gap:8 }}
                           >
-                            {isRecording && activeRecordingIndex === i ? <Square className="icon" /> : <Mic className="icon" />}
-                            {isRecording && activeRecordingIndex === i ? 'Kaydı Durdur' : 'Kaydı Başlat'}
+                            {isRecording ? <Square className="icon" /> : <Mic className="icon" />}
+                            {isRecording ? 'Kaydı Durdur' : 'Kayıt Yap'}
                           </button>
+                          
+                          {isProcessingSpeech && <span style={{ color:'#666' }}>Ses işleniyor...</span>}
                         </div>
                       </div>
-                    ))}
+                      
+                      {/* Navigasyon butonları */}
+                      <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
+                        <button
+                          className="btn btn-outline"
+                          onClick={() => setCurrentSpeakingQuestion(prev => Math.max(0, prev - 1))}
+                          disabled={currentSpeakingQuestion === 0}
+                        >
+                          ← Önceki Soru
+                        </button>
+                        
+                        <button
+                          className="btn btn-primary"
+                          onClick={() => setCurrentSpeakingQuestion(prev => Math.min(speakingQuestions.part1.length - 1, prev + 1))}
+                          disabled={currentSpeakingQuestion === speakingQuestions.part1.length - 1}
+                        >
+                          Sonraki Soru →
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {speakingPart === 2 && (
+                    <div className="card" style={{ marginTop: 10 }}>
+                      <h4>Part 2: Long Turn (Cue Card)</h4>
+                      
+                      <div style={{ background:'#f8f9fa', border:'1px solid #e0e0e0', borderRadius:8, padding:14, marginBottom: '20px' }}>
+                        <strong>Topic:</strong> {speakingQuestions.part2.topic}
+                        <ul style={{ marginTop: 8 }}>
+                          {speakingQuestions.part2.bullets.map((b, i) => (
+                            <li key={i}>{b}</li>
+                          ))}
+                        </ul>
+                      </div>
+                      
+                      {/* Ses oynatma butonu */}
+                      {speakingQuestions.part2.audioUrl && (
+                        <button
+                          className="btn btn-secondary"
+                          onClick={() => {
+                            const audio = new Audio(speakingQuestions.part2.audioUrl);
+                            audio.play();
+                          }}
+                          style={{ marginBottom: '15px' }}
+                        >
+                          🔊 Cue Card'ı Dinle
+                        </button>
+                      )}
+                      
+                      {/* Cevap textarea */}
+                      <textarea
+                        value={speakingAnswers.part2}
+                        onChange={(e) => {
+                          setSpeakingAnswers(prev => ({ ...prev, part2: e.target.value }));
+                        }}
+                        placeholder="Cevabınızı buraya yazın veya kayıt yapın"
+                        style={{ width:'100%', minHeight: 150, padding: 12, border:'1px solid #e0e0e0', borderRadius: 8, background:'#ffffff' }}
+                      />
+                      
+                      {/* Kayıt butonu */}
+                      <div style={{ marginTop: '15px', display: 'flex', gap: '10px' }}>
+                        <button
+                          className="btn btn-primary"
+                          onClick={() => {
+                            if (isRecording) { 
+                              stopSpeakingRecording(); 
+                            } else { 
+                              startSpeakingRecording(); 
+                            }
+                          }}
+                          disabled={isProcessingSpeech}
+                          style={{ display:'inline-flex', alignItems:'center', gap:8 }}
+                        >
+                          {isRecording ? <Square className="icon" /> : <Mic className="icon" />}
+                          {isRecording ? 'Kaydı Durdur' : 'Kayıt Yap'}
+                        </button>
+                        
+                        {isProcessingSpeech && <span style={{ color:'#666' }}>Ses işleniyor...</span>}
+                      </div>
+                    </div>
+                  )}
+
+                  {speakingPart === 3 && (
+                    <div className="card" style={{ marginTop: 10 }}>
+                      <h4>Part 3: Discussion</h4>
+                      <p style={{ color: '#666', marginBottom: '20px' }}>
+                        Soru {currentSpeakingQuestion + 1} / {speakingQuestions.part3.length}
+                      </p>
+                      
+                      <div style={{ marginBottom: '20px' }}>
+                        <div style={{ marginBottom: '10px', fontWeight: 500 }}>
+                          {currentSpeakingQuestion + 1}. {speakingQuestions.part3[currentSpeakingQuestion]?.question}
+                        </div>
+                        
+                        {/* Ses oynatma butonu */}
+                        {speakingQuestions.part3[currentSpeakingQuestion]?.audioUrl && (
+                          <button
+                            className="btn btn-secondary"
+                            onClick={() => {
+                              const audio = new Audio(speakingQuestions.part3[currentSpeakingQuestion].audioUrl);
+                              audio.play();
+                            }}
+                            style={{ marginBottom: '15px' }}
+                          >
+                            🔊 Soruyu Dinle
+                          </button>
+                        )}
+                        
+                        {/* Cevap textarea */}
+                        <textarea
+                          value={speakingAnswers.part3[currentSpeakingQuestion] || ''}
+                          onChange={(e) => {
+                            setSpeakingAnswers(prev => ({
+                              ...prev,
+                              part3: prev.part3.map((answer, i) => 
+                                i === currentSpeakingQuestion ? e.target.value : answer
+                              )
+                            }));
+                          }}
+                          placeholder="Cevabınızı buraya yazın veya kayıt yapın"
+                          style={{ width:'100%', minHeight: 120, padding: 12, border:'1px solid #e0e0e0', borderRadius: 8, background:'#ffffff' }}
+                        />
+                        
+                        {/* Kayıt butonu */}
+                        <div style={{ marginTop: '15px', display: 'flex', gap: '10px' }}>
+                          <button
+                            className="btn btn-primary"
+                            onClick={() => {
+                              if (isRecording) { 
+                                stopSpeakingRecording(); 
+                              } else { 
+                                startSpeakingRecording(); 
+                              }
+                            }}
+                            disabled={isProcessingSpeech}
+                            style={{ display:'inline-flex', alignItems:'center', gap:8 }}
+                          >
+                            {isRecording ? <Square className="icon" /> : <Mic className="icon" />}
+                            {isRecording ? 'Kaydı Durdur' : 'Kayıt Yap'}
+                          </button>
+                          
+                          {isProcessingSpeech && <span style={{ color:'#666' }}>Ses işleniyor...</span>}
+                        </div>
+                      </div>
+                      
+                      {/* Navigasyon butonları */}
+                      <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
+                        <button
+                          className="btn btn-outline"
+                          onClick={() => setCurrentSpeakingQuestion(prev => Math.max(0, prev - 1))}
+                          disabled={currentSpeakingQuestion === 0}
+                        >
+                          ← Önceki Soru
+                        </button>
+                        
+                        <button
+                          className="btn btn-primary"
+                          onClick={() => setCurrentSpeakingQuestion(prev => Math.min(speakingQuestions.part3.length - 1, prev + 1))}
+                          disabled={currentSpeakingQuestion === speakingQuestions.part3.length - 1}
+                        >
+                          Sonraki Soru →
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Değerlendirme Bölümü */}
+                  <div className="card" style={{ marginTop: '20px', textAlign: 'center' }}>
+                    <h4>📊 Speaking Test Değerlendirmesi</h4>
+                    <p style={{ color: '#666', marginBottom: '20px' }}>
+                      Tüm cevaplarınızı verdikten sonra değerlendirme yapabilirsiniz.
+                    </p>
+                    
+                    <button
+                      className="btn btn-success"
+                      onClick={evaluateSpeakingTest}
+                      disabled={speakingEvaluating || (!speakingAnswers.part1.some(a => a.trim()) && !speakingAnswers.part2.trim() && !speakingAnswers.part3.some(a => a.trim()))}
+                      style={{ fontSize: '16px', padding: '12px 24px' }}
+                    >
+                      {speakingEvaluating ? 'Değerlendiriliyor...' : '🎯 Speaking Testini Değerlendir'}
+                    </button>
+                    
+                    {speakingError && (
+                      <div className="error-message" style={{ marginTop: '15px', color: '#d33' }}>
+                        ❌ {speakingError}
+                      </div>
+                    )}
                   </div>
+                  
+                  {/* Speaking Test Tamamlandı Mesajı */}
+                  {speakingEvaluation && (
+                    <div style={{ textAlign: 'center', marginTop: '20px' }}>
+                      <div style={{ 
+                        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', 
+                        color: 'white', 
+                        padding: '20px', 
+                        borderRadius: '12px',
+                        marginBottom: '20px'
+                      }}>
+                        <h3 style={{ margin: '0 0 10px 0', fontSize: '24px' }}>
+                          🎉 Speaking Testi Tamamlandı!
+                        </h3>
+                        <p style={{ margin: 0, fontSize: '16px', opacity: 0.9 }}>
+                          Tüm modüller tamamlandı. Şimdi genel deneme sınavını değerlendirebilirsiniz.
+                        </p>
+                      </div>
+                      
+                      <button 
+                        className="btn btn-primary" 
+                        onClick={() => setShowTestEvaluation(true)}
+                        style={{
+                          background: '#8B5CF6',
+                          color: 'white',
+                          padding: '15px 30px',
+                          fontSize: '18px',
+                          fontWeight: 'bold',
+                          borderRadius: '25px',
+                          border: 'none',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        📊 Deneme Sınavını Değerlendir
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -2152,6 +2444,17 @@ const GeneralTestPage: React.FC = () => {
           </button>
         </div>
       </div>
+      
+      {/* Test Evaluation Modal */}
+      {showTestEvaluation && (
+        <TestEvaluation
+          readingResult={readingResult}
+          writingResults={writingResults}
+          speakingEvaluation={speakingEvaluation}
+          listeningResult={null}
+          onBack={() => setShowTestEvaluation(false)}
+        />
+      )}
     </div>
   );
 };

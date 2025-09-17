@@ -20,10 +20,10 @@ const SpeakingModule: React.FC = () => {
         <div className="grid">
           <div className="card">
             <h3>🎤 Konuşma Kaydı</h3>
-            <p>AI öğretmen ile konuşma pratiği yapın. Ses kaydı yapın, metin dönüştürme ve AI yanıtları alın.</p>
+            <p>AI öğretmen ile konuşma pratiği yapın. Ses kaydı yapın, metin dönüştürme ve AI yanıtları alın. Session sonunda IELTS değerlendirmesi alın.</p>
             <Link to="/speech-recording" className="btn" style={{ textDecoration: 'none' }}>
               <Mic style={{ marginRight: '8px' }} />
-              START SPEECH RECORDING
+              KONUŞMA PRATİĞİNE BAŞLA
             </Link>
           </div>
 

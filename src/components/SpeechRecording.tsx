@@ -52,6 +52,13 @@ const topics: Topic[] = [
     description: 'İş görüşmesi pratiği yapın',
     icon: '💼',
     prompt: 'Hello! Welcome to this practice interview session. Let\'s start - could you please introduce yourself and tell me a bit about your background?'
+  },
+  {
+    id: 'daily-life',
+    title: 'Daily Life & Routine',
+    description: 'Günlük hayat ve rutinler hakkında konuşun',
+    icon: '🏠',
+    prompt: 'Hello! Let\'s talk about daily life and routines. What does your typical weekday morning look like? How do you usually start your day?'
   }
 ];
 
@@ -69,6 +76,11 @@ const SpeechRecording: React.FC<SpeechRecordingProps> = () => {
   const [sessionScores, setSessionScores] = useState<number[]>([]);
   const [sessionMessages, setSessionMessages] = useState<string[]>([]);
   const [sessionStarted, setSessionStarted] = useState(false);
+  
+  // Session değerlendirme için state'ler
+  const [sessionEvaluation, setSessionEvaluation] = useState<any>(null);
+  const [sessionEvaluating, setSessionEvaluating] = useState(false);
+  const [showSessionEvaluation, setShowSessionEvaluation] = useState(false);
   
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
@@ -295,28 +307,14 @@ const SpeechRecording: React.FC<SpeechRecordingProps> = () => {
       const data = await response.json();
       console.log('✅ Speaking - Mesaj başarıyla kaydedildi:', data);
       
-      // Session'a puan ekle (hemen kaydetme, session bitince kaydedeceğiz)
-      if (data.analysis && data.analysis.overallScore) {
-        const newScore = data.analysis.overallScore;
-        console.log(`📊 Session puanı ekleniyor: ${newScore}/100`);
-        
-        setSessionScores(prev => {
-          const updated = [...prev, newScore];
-          console.log(`📊 Session scores güncellendi:`, updated);
-          return updated;
-        });
-        
-        setSessionMessages(prev => {
-          const updated = [...prev, message];
-          console.log(`📝 Session messages güncellendi:`, updated.length, 'mesaj');
-          return updated;
-        });
-        
-        console.log(`✅ Session puanı eklendi: ${newScore}/100`);
-        console.log('⏳ Session devam ediyor, puan henüz kaydedilmiyor...');
-      } else {
-        console.log('❌ Analysis veya overallScore bulunamadı:', data);
-      }
+      // Session mesajlarını kaydet (analiz kısmı tamamen kaldırıldı)
+      setSessionMessages(prev => {
+        const updated = [...prev, message];
+        console.log(`📝 Session messages güncellendi:`, updated.length, 'mesaj');
+        return updated;
+      });
+      
+      console.log('✅ Session mesajı kaydedildi');
       
     } catch (error) {
       console.error('❌ Speaking - Mesaj kaydedilemedi:', error);
@@ -324,29 +322,78 @@ const SpeechRecording: React.FC<SpeechRecordingProps> = () => {
     }
   };
 
-  const saveSessionScore = async () => {
+  // Session değerlendirme fonksiyonu
+  const evaluateSession = async () => {
+    try {
+      setSessionEvaluating(true);
+      setError('');
+      
+      if (sessionMessages.length === 0) {
+        setError('Değerlendirme için en az bir mesaj gerekli');
+        return;
+      }
+      
+      const response = await fetch('http://localhost:8005/evaluate-session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          conversation_history: conversationHistory,
+          topic: selectedTopic?.title || 'Unknown Topic',
+          session_messages: sessionMessages
+        })
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Değerlendirme hatası: ${response.status}`);
+      }
+      
+      const evaluation = await response.json();
+      setSessionEvaluation(evaluation);
+      setShowSessionEvaluation(true);
+      
+      // Aynı zamanda eski puanlama sistemini de kullan
+      await saveSessionScore(evaluation.overall_band);
+      
+    } catch (error: any) {
+      setError(error.message || 'Session değerlendirme hatası');
+    } finally {
+      setSessionEvaluating(false);
+    }
+  };
+
+  const saveSessionScore = async (ieltsBand?: number) => {
     console.log('🔍 saveSessionScore çağrıldı', {
       sessionScores: sessionScores,
       sessionScoresLength: sessionScores.length,
       selectedTopic: selectedTopic?.title
     });
     
-    if (sessionScores.length === 0) {
+    if (sessionScores.length === 0 && !ieltsBand) {
       console.log('📊 Session puanı yok, kaydetme atlanıyor');
       return;
     }
 
     try {
-      // Session ortalaması hesapla
-      const averageScore = sessionScores.reduce((sum, score) => sum + score, 0) / sessionScores.length;
-      const bandScore = averageScore / 10; // 0-100'den 0-9'a çevir
+      // IELTS band score'u varsa onu kullan, yoksa eski sistemi kullan
+      let bandScore: number;
+      let averageScore: number;
+      
+      if (ieltsBand) {
+        bandScore = ieltsBand;
+        averageScore = ieltsBand * 10; // 0-9'dan 0-90'a çevir
+      } else {
+        // Eski sistem
+        averageScore = sessionScores.reduce((sum, score) => sum + score, 0) / sessionScores.length;
+        bandScore = averageScore / 10; // 0-100'den 0-9'a çevir
+      }
       
       console.log('💾 Speaking Session puanı kaydediliyor...', {
         mesajSayısı: sessionScores.length,
         ortalamaPuan: averageScore,
         bandScore: bandScore,
         topic: selectedTopic?.title,
-        sessionScores: sessionScores
+        sessionScores: sessionScores,
+        ieltsEvaluation: !!ieltsBand
       });
       
       const token = localStorage.getItem('token');
@@ -365,7 +412,7 @@ const SpeechRecording: React.FC<SpeechRecordingProps> = () => {
           module: 'speaking',
           band_score: bandScore,
           raw_score: Math.round(averageScore),
-          total_questions: sessionScores.length,
+          total_questions: sessionScores.length || sessionMessages.length,
           topic: selectedTopic?.title || 'Unknown Topic',
           difficulty: 'intermediate',
           accent: null,
@@ -373,7 +420,9 @@ const SpeechRecording: React.FC<SpeechRecordingProps> = () => {
             session_scores: sessionScores,
             session_messages: sessionMessages,
             average_score: averageScore,
-            topicId: selectedTopic?.id
+            topicId: selectedTopic?.id,
+            ielts_evaluation: sessionEvaluation,
+            evaluation_type: ieltsBand ? 'ielts_ai' : 'basic'
           }
         }),
       });
@@ -668,9 +717,9 @@ const SpeechRecording: React.FC<SpeechRecordingProps> = () => {
       <div className="container">
         <div className="card">
           <div className="mb-4">
-            <Link to="/speaking" className="btn mb-2">
+            <Link to="/dashboard" className="btn mb-2">
               <ArrowLeft style={{ marginRight: '8px' }} />
-              Speaking Modülüne Dön
+              Ana Sayfaya Dön
             </Link>
             <h1 className="module-header">
               <Mic />
@@ -737,7 +786,7 @@ const SpeechRecording: React.FC<SpeechRecordingProps> = () => {
         gap: '15px'
       }}>
         <Link 
-          to="/speaking" 
+          to="/" 
           className="btn"
           style={{
             padding: '8px 16px',
@@ -749,7 +798,7 @@ const SpeechRecording: React.FC<SpeechRecordingProps> = () => {
           }}
         >
           <ArrowLeft size={16} />
-          Speaking Modülü
+          Ana Sayfa
         </Link>
         <Link 
           to="/dashboard" 
@@ -764,7 +813,7 @@ const SpeechRecording: React.FC<SpeechRecordingProps> = () => {
           }}
         >
           <ArrowLeft size={16} />
-          Ana Sayfa
+          Dashboard
         </Link>
       </div>
 
@@ -1160,6 +1209,54 @@ const SpeechRecording: React.FC<SpeechRecordingProps> = () => {
         </button>
       </div>
 
+      {/* Session Değerlendirme Butonu */}
+      {sessionStarted && sessionMessages.length > 0 && (
+        <div style={{
+          position: 'fixed',
+          bottom: '20px',
+          right: '20px',
+          zIndex: 1000
+        }}>
+          <button
+            onClick={evaluateSession}
+            disabled={sessionEvaluating}
+            style={{
+              backgroundColor: '#10b981',
+              color: 'white',
+              border: 'none',
+              borderRadius: '12px',
+              padding: '12px 20px',
+              fontSize: '14px',
+              fontWeight: '600',
+              cursor: sessionEvaluating ? 'not-allowed' : 'pointer',
+              boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              opacity: sessionEvaluating ? 0.7 : 1
+            }}
+          >
+            {sessionEvaluating ? (
+              <>
+                <div style={{
+                  width: '16px',
+                  height: '16px',
+                  border: '2px solid #ffffff',
+                  borderTop: '2px solid transparent',
+                  borderRadius: '50%',
+                  animation: 'spin 1s linear infinite'
+                }} />
+                Değerlendiriliyor...
+              </>
+            ) : (
+              <>
+                📊 Session Değerlendir
+              </>
+            )}
+          </button>
+        </div>
+      )}
+
       {/* Error Toast */}
       {error && (
         <div style={{
@@ -1178,6 +1275,221 @@ const SpeechRecording: React.FC<SpeechRecordingProps> = () => {
           textAlign: 'center'
         }}>
           {error}
+        </div>
+      )}
+
+      {/* Session Değerlendirme Modal */}
+      {showSessionEvaluation && sessionEvaluation && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.5)',
+          zIndex: 2000,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '20px'
+        }}>
+          <div style={{
+            backgroundColor: 'white',
+            borderRadius: '16px',
+            padding: '30px',
+            maxWidth: '800px',
+            width: '100%',
+            maxHeight: '90vh',
+            overflow: 'auto',
+            boxShadow: '0 20px 40px rgba(0, 0, 0, 0.2)'
+          }}>
+            {/* Header */}
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: '30px'
+            }}>
+              <h2 style={{ margin: 0, color: '#1f2937' }}>🎯 Session Değerlendirme Sonuçları</h2>
+              <button
+                onClick={() => setShowSessionEvaluation(false)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  fontSize: '24px',
+                  cursor: 'pointer',
+                  color: '#6b7280'
+                }}
+              >
+                ×
+              </button>
+            </div>
+
+            {/* Genel Band Score */}
+            <div style={{
+              textAlign: 'center',
+              marginBottom: '30px',
+              padding: '20px',
+              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+              borderRadius: '12px',
+              color: 'white'
+            }}>
+              <h1 style={{ margin: 0, fontSize: '48px', fontWeight: 'bold' }}>
+                {sessionEvaluation.overall_band}
+              </h1>
+              <p style={{ margin: '10px 0 0 0', fontSize: '18px', opacity: 0.9 }}>
+                IELTS Speaking Band Score
+              </p>
+              <p style={{ margin: '5px 0 0 0', fontSize: '14px', opacity: 0.8 }}>
+                Konu: {sessionEvaluation.topic}
+              </p>
+            </div>
+
+            {/* Kriterler */}
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
+              gap: '20px',
+              marginBottom: '30px'
+            }}>
+              {/* Fluency & Coherence */}
+              <div style={{ border: '1px solid #e0e0e0', borderRadius: '8px', padding: '15px' }}>
+                <h4 style={{ color: '#4CAF50', margin: '0 0 10px 0' }}>
+                  🗣️ Fluency & Coherence
+                </h4>
+                <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#4CAF50', marginBottom: '10px' }}>
+                  {sessionEvaluation.fluency_coherence.band}
+                </div>
+                <p style={{ fontSize: '14px', color: '#666', lineHeight: '1.5' }}>
+                  {sessionEvaluation.fluency_coherence.feedback}
+                </p>
+              </div>
+
+              {/* Lexical Resource */}
+              <div style={{ border: '1px solid #e0e0e0', borderRadius: '8px', padding: '15px' }}>
+                <h4 style={{ color: '#2196F3', margin: '0 0 10px 0' }}>
+                  📚 Lexical Resource
+                </h4>
+                <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#2196F3', marginBottom: '10px' }}>
+                  {sessionEvaluation.lexical_resource.band}
+                </div>
+                <p style={{ fontSize: '14px', color: '#666', lineHeight: '1.5' }}>
+                  {sessionEvaluation.lexical_resource.feedback}
+                </p>
+              </div>
+
+              {/* Grammar */}
+              <div style={{ border: '1px solid #e0e0e0', borderRadius: '8px', padding: '15px' }}>
+                <h4 style={{ color: '#FF9800', margin: '0 0 10px 0' }}>
+                  📝 Grammar
+                </h4>
+                <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#FF9800', marginBottom: '10px' }}>
+                  {sessionEvaluation.grammar.band}
+                </div>
+                <p style={{ fontSize: '14px', color: '#666', lineHeight: '1.5' }}>
+                  {sessionEvaluation.grammar.feedback}
+                </p>
+              </div>
+
+              {/* Pronunciation */}
+              <div style={{ border: '1px solid #e0e0e0', borderRadius: '8px', padding: '15px' }}>
+                <h4 style={{ color: '#9C27B0', margin: '0 0 10px 0' }}>
+                  🎤 Pronunciation
+                </h4>
+                <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#9C27B0', marginBottom: '10px' }}>
+                  {sessionEvaluation.pronunciation.band}
+                </div>
+                <p style={{ fontSize: '14px', color: '#666', lineHeight: '1.5' }}>
+                  {sessionEvaluation.pronunciation.feedback}
+                </p>
+              </div>
+            </div>
+
+            {/* Session Özeti */}
+            {sessionEvaluation.session_summary && (
+              <div style={{
+                background: '#f8f9fa',
+                border: '1px solid #e0e0e0',
+                borderRadius: '8px',
+                padding: '20px',
+                marginBottom: '20px'
+              }}>
+                <h4 style={{ margin: '0 0 15px 0' }}>📋 Session Özeti</h4>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '15px' }}>
+                  <div>
+                    <strong>Toplam Mesaj:</strong> {sessionEvaluation.session_summary.total_messages}
+                  </div>
+                  <div>
+                    <strong>Konu Katılımı:</strong> {sessionEvaluation.session_summary.topic_engagement}
+                  </div>
+                </div>
+                
+                {sessionEvaluation.session_summary.strengths && (
+                  <div style={{ marginTop: '15px' }}>
+                    <strong>Güçlü Yönler:</strong>
+                    <ul style={{ margin: '5px 0 0 20px' }}>
+                      {sessionEvaluation.session_summary.strengths.map((strength: string, index: number) => (
+                        <li key={index}>{strength}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                
+                {sessionEvaluation.session_summary.improvement_areas && (
+                  <div style={{ marginTop: '15px' }}>
+                    <strong>Geliştirilmesi Gereken Alanlar:</strong>
+                    <ul style={{ margin: '5px 0 0 20px' }}>
+                      {sessionEvaluation.session_summary.improvement_areas.map((area: string, index: number) => (
+                        <li key={index}>{area}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Genel Feedback */}
+            <div style={{
+              background: '#e3f2fd',
+              border: '1px solid #bbdefb',
+              borderRadius: '8px',
+              padding: '20px',
+              marginBottom: '20px'
+            }}>
+              <h4 style={{ margin: '0 0 15px 0' }}>💡 Genel Değerlendirme</h4>
+              <p style={{ fontSize: '16px', lineHeight: '1.6', color: '#333', margin: 0 }}>
+                {sessionEvaluation.general_feedback}
+              </p>
+            </div>
+
+            {/* Footer */}
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              paddingTop: '20px',
+              borderTop: '1px solid #e0e0e0'
+            }}>
+              <div style={{ fontSize: '14px', color: '#666' }}>
+                Değerlendirme Tarihi: {new Date(sessionEvaluation.timestamp).toLocaleString('tr-TR')}
+              </div>
+              <button
+                onClick={() => setShowSessionEvaluation(false)}
+                style={{
+                  backgroundColor: '#10b981',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '8px',
+                  padding: '10px 20px',
+                  fontSize: '14px',
+                  fontWeight: '600',
+                  cursor: 'pointer'
+                }}
+              >
+                Kapat
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
