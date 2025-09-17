@@ -339,8 +339,10 @@ const Dashboard: React.FC = () => {
                   <span className="score">{userStats.generalTests.latestResult.speaking.toFixed(1)}</span>
                 </div>
                 <div className="score-item overall">
-                  <span className="label">Overall:</span>
-                  <span className="score">{userStats.generalTests.latestResult.overall.toFixed(1)}</span>
+                  <span className="label">🎯 Genel IELTS:</span>
+                  <span className="score" style={{ fontSize: '1.5rem', fontWeight: 'bold' }}>
+                    {userStats.generalTests.latestResult.overall.toFixed(1)}
+                  </span>
                 </div>
               </div>
             </div>
@@ -372,8 +374,10 @@ const Dashboard: React.FC = () => {
                   <span className="score">{userStats.generalTests.bestResult.speaking.toFixed(1)}</span>
                 </div>
                 <div className="score-item overall">
-                  <span className="label">Overall:</span>
-                  <span className="score">{userStats.generalTests.bestResult.overall.toFixed(1)}</span>
+                  <span className="label">🎯 Genel IELTS:</span>
+                  <span className="score" style={{ fontSize: '1.5rem', fontWeight: 'bold' }}>
+                    {userStats.generalTests.bestResult.overall.toFixed(1)}
+                  </span>
                 </div>
               </div>
             </div>

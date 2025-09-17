@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Depends, Header
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from typing import List, Dict, Any, Optional
@@ -7,6 +7,7 @@ import json
 import uvicorn
 import asyncio
 import datetime
+import jwt
 
 from dotenv import load_dotenv, find_dotenv
 
@@ -85,6 +86,9 @@ except Exception:
 MONGODB_URI = os.getenv("MONGODB_URI", "mongodb://localhost:27017")
 MONGODB_DB = os.getenv("MONGODB_DB", "ielts_go")
 
+# JWT Secret Key
+JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", "your-secret-key-here")
+
 _mongo_client: Optional[AsyncIOMotorClient] = None
 
 def _get_mongo_client() -> Optional[AsyncIOMotorClient]:
@@ -98,6 +102,23 @@ def _get_mongo_client() -> Optional[AsyncIOMotorClient]:
 def _get_db():
     client = _get_mongo_client()
     return client[MONGODB_DB] if client else None
+
+# JWT Token parsing fonksiyonu
+def get_current_user(authorization: Optional[str] = Header(None)):
+    if not authorization or not authorization.startswith("Bearer "):
+        return None
+    
+    token = authorization.split(" ")[1]
+    try:
+        payload = jwt.decode(token, JWT_SECRET_KEY, algorithms=["HS256"])
+        user_id = payload.get("sub")
+        return user_id
+    except jwt.ExpiredSignatureError:
+        print("JWT token expired")
+        return None
+    except jwt.InvalidTokenError:
+        print("Invalid JWT token")
+        return None
 
 def _ensure_data_dir():
     os.makedirs(DATA_DIR, exist_ok=True)
@@ -362,10 +383,11 @@ async def get_test(test_id: str):
     raise HTTPException(status_code=404, detail="Test bulunamadı - Testler anlık olarak üretiliyor")
 
 @app.post("/submit")
-async def submit_answers(payload: SubmitAnswersRequest):
+async def submit_answers(payload: SubmitAnswersRequest, user_id: Optional[str] = Depends(get_current_user)):
     print(f"🔍 Submit endpoint çağrıldı")
     print(f"📋 Test ID: {payload.test_id}")
     print(f"📝 Cevaplar sayısı: {len(payload.answers)}")
+    print(f"👤 User ID: {user_id}")
     print(f"📊 Test data var mı: {hasattr(payload, 'test_data')}")
     print(f"📊 Test data değeri: {payload.test_data is not None if hasattr(payload, 'test_data') else 'N/A'}")
     
@@ -412,7 +434,7 @@ async def submit_answers(payload: SubmitAnswersRequest):
     if db is not None:
         doc = {
             "test_id": payload.test_id,
-            "user_id": payload.user_id,
+            "user_id": user_id,
             "answers": payload.answers,
             "raw": raw,
             "scaled": {"correct": scaled_correct, "total": total_questions},
@@ -421,7 +443,7 @@ async def submit_answers(payload: SubmitAnswersRequest):
     
     # Dashboard için puan kaydetme
     print(f"🔍 Dashboard kaydetme başlıyor...")
-    print(f"📋 User ID: {payload.user_id}")
+    print(f"📋 User ID: {user_id}")
     print(f"📊 Band Score: {band}")
     print(f"📝 Test Type: {'practice' if is_practice_test else 'full'}")
     
@@ -452,18 +474,18 @@ async def submit_answers(payload: SubmitAnswersRequest):
         async with httpx.AsyncClient() as client:
             # Authorization header ekle
             headers = {}
-            if payload.user_id:
+            if user_id:
                 # JWT token oluştur (basit bir yaklaşım)
                 import jwt
                 import os
                 secret_key = os.getenv("JWT_SECRET_KEY", "your-secret-key-here")
                 token = jwt.encode(
-                    {"sub": payload.user_id, "exp": datetime.datetime.utcnow() + datetime.timedelta(hours=24)},
+                    {"sub": user_id, "exp": datetime.datetime.utcnow() + datetime.timedelta(hours=24)},
                     secret_key,
                     algorithm="HS256"
                 )
                 headers["Authorization"] = f"Bearer {token}"
-                print(f"🔐 User ID: {payload.user_id} - Dashboard'a kaydediliyor...")
+                print(f"🔐 User ID: {user_id} - Dashboard'a kaydediliyor...")
                 print(f"🎫 Token: {token[:50]}...")
             else:
                 print(f"⚠️ User ID bulunamadı - Dashboard'a kaydedilemiyor")
@@ -698,7 +720,7 @@ KRİTİK KURALLAR:
         raise HTTPException(status_code=500, detail=f"Test üretme hatası: {str(e)}")
 
 @app.post("/generate-ielts-academic")
-async def generate_ielts_academic_test(request: Dict[str, Any]):
+async def generate_ielts_academic_test(request: Dict[str, Any], user_id: Optional[str] = Depends(get_current_user)):
     """IELTS Academic Reading formatında test üret"""
     try:
         # Gemini API key kontrolü

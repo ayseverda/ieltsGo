@@ -4,36 +4,105 @@ import { ArrowLeft, Trophy, BookOpen, Mic, Edit3, Volume2 } from 'lucide-react';
 
 interface TestEvaluationProps {
   readingResult?: any;
+  readingTest?: any;
+  readingAnswers?: {[key: string]: string};
   writingResults?: any;
   speakingEvaluation?: any;
   listeningResult?: any;
+  listeningTest?: any;
+  listeningAnswers?: {[key: string]: string};
   onBack: () => void;
 }
 
 const TestEvaluation: React.FC<TestEvaluationProps> = ({
   readingResult,
+  readingTest,
+  readingAnswers,
   writingResults,
   speakingEvaluation,
   listeningResult,
+  listeningTest,
+  listeningAnswers,
   onBack
 }) => {
   const [activeTab, setActiveTab] = useState<'overview' | 'reading' | 'writing' | 'speaking' | 'listening'>('overview');
   const [overallScore, setOverallScore] = useState<number>(0);
 
   useEffect(() => {
-    // Genel puanı hesapla
+    // Genel puanı hesapla - IELTS'te her modül eşit ağırlıkta
     const scores = [];
     if (readingResult?.band_estimate) scores.push(readingResult.band_estimate);
     if (speakingEvaluation?.overall_band) scores.push(speakingEvaluation.overall_band);
     if (listeningResult?.band_estimate) scores.push(listeningResult.band_estimate);
     
-    // Writing sonuçları varsa ekle
-    if (writingResults?.task1?.overall_band) scores.push(writingResults.task1.overall_band);
-    if (writingResults?.task2?.overall_band) scores.push(writingResults.task2.overall_band);
+    // Writing sonuçları varsa ekle - Task 1 ve Task 2 ortalaması
+    if (writingResults?.task1?.overall_band || writingResults?.task2?.overall_band) {
+      const writingScores = [];
+      if (writingResults?.task1?.overall_band) writingScores.push(writingResults.task1.overall_band);
+      if (writingResults?.task2?.overall_band) writingScores.push(writingResults.task2.overall_band);
+      const writingAverage = writingScores.reduce((a, b) => a + b, 0) / writingScores.length;
+      scores.push(writingAverage);
+    }
     
     const average = scores.length > 0 ? scores.reduce((a, b) => a + b, 0) / scores.length : 0;
     setOverallScore(average);
+    
+    // Genel IELTS puanını dashboard'a kaydet
+    if (average > 0) {
+      saveOverallScoreToDashboard(average);
+    }
   }, [readingResult, speakingEvaluation, listeningResult, writingResults]);
+
+  const saveOverallScoreToDashboard = async (overallScore: number) => {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) return;
+      
+      // Cache kontrolü - aynı puan zaten kaydedilmiş mi?
+      const cacheKey = `dashboard_save_${overallScore.toFixed(1)}`;
+      const alreadySaved = localStorage.getItem(cacheKey);
+      if (alreadySaved) {
+        console.log('📦 Dashboard kaydı zaten yapılmış, cache\'den atlanıyor...');
+        return;
+      }
+      
+      const response = await fetch('http://localhost:8000/api/complete-general-test', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json', 
+          'Authorization': `Bearer ${token}` 
+        },
+        body: JSON.stringify({
+          reading_band: readingResult?.band_estimate || 0,
+          writing_band: writingResults?.task1?.overall_band && writingResults?.task2?.overall_band ? 
+            (writingResults.task1.overall_band + writingResults.task2.overall_band) / 2 : 0,
+          listening_band: listeningResult?.band_estimate || 0,
+          speaking_band: speakingEvaluation?.overall_band || 0,
+          overall_band: overallScore,
+          detailed: { 
+            source: 'general_test_evaluation',
+            reading_details: readingResult,
+            writing_details: writingResults,
+            listening_details: listeningResult,
+            speaking_details: speakingEvaluation
+          }
+        })
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        console.log('✅ API\'den genel IELTS puanı dashboard\'a kaydedildi:', data);
+        
+        // Cache'e kaydet
+        localStorage.setItem(cacheKey, 'saved');
+        console.log('💾 Dashboard kaydı cache\'e kaydedildi');
+      } else {
+        console.error('❌ Dashboard kaydetme hatası:', await response.text());
+      }
+    } catch (error) {
+      console.error('❌ Dashboard kaydetme hatası:', error);
+    }
+  };
 
   const getScoreColor = (score: number) => {
     if (score >= 8) return '#4CAF50';
@@ -164,6 +233,30 @@ const TestEvaluation: React.FC<TestEvaluationProps> = ({
       }}>
         {activeTab === 'overview' && (
           <div>
+            {/* Genel IELTS Puanı */}
+            {overallScore > 0 && (
+              <div style={{
+                background: 'linear-gradient(135deg, #8B5CF6 0%, #7C3AED 100%)',
+                color: 'white',
+                padding: '30px',
+                borderRadius: '20px',
+                textAlign: 'center',
+                marginBottom: '30px',
+                boxShadow: '0 10px 30px rgba(139, 92, 246, 0.3)'
+              }}>
+                <Trophy size={60} style={{ marginBottom: '15px' }} />
+                <h2 style={{ fontSize: '28px', margin: '0 0 10px 0', fontWeight: 'bold' }}>
+                  🎯 Genel IELTS Puanı
+                </h2>
+                <div style={{ fontSize: '48px', fontWeight: 'bold', marginBottom: '10px' }}>
+                  {overallScore.toFixed(1)}
+                </div>
+                <p style={{ fontSize: '16px', margin: 0, opacity: 0.9 }}>
+                  Tüm modüllerin ortalaması
+                </p>
+              </div>
+            )}
+            
             <h3 style={{ color: '#8B5CF6', fontSize: '24px', marginBottom: '25px', textAlign: 'center' }}>
               📊 Modül Bazında Sonuçlar
             </h3>
@@ -362,6 +455,95 @@ const TestEvaluation: React.FC<TestEvaluationProps> = ({
                 <div style={{ color: '#E65100', fontSize: '14px' }}>Boş</div>
               </div>
             </div>
+
+            {/* Yanlış Cevaplar */}
+            {readingTest && readingAnswers && (
+              <div style={{
+                background: '#f8f9fa',
+                padding: '20px',
+                borderRadius: '12px',
+                border: '1px solid #dee2e6',
+                marginBottom: '25px'
+              }}>
+                <h5 style={{ color: '#8B5CF6', margin: '0 0 15px 0' }}>📝 Soru Bazında Değerlendirme</h5>
+                
+                <div style={{ display: 'grid', gap: '15px' }}>
+                  {readingTest.questions?.map((question: any, index: number) => {
+                    const userAnswer = readingAnswers[question.id] || '';
+                    const correctAnswer = question.correct_answer || question.answer;
+                    const isCorrect = userAnswer.toLowerCase().trim() === String(correctAnswer).toLowerCase().trim();
+                    const isBlank = !userAnswer || userAnswer.trim() === '';
+                    
+                    return (
+                      <div key={question.id} style={{
+                        background: 'white',
+                        padding: '15px',
+                        borderRadius: '8px',
+                        border: `2px solid ${isCorrect ? '#4CAF50' : isBlank ? '#FF9800' : '#F44336'}`,
+                        display: 'grid',
+                        gridTemplateColumns: '1fr 1fr',
+                        gap: '15px'
+                      }}>
+                        <div>
+                          <h6 style={{ color: '#8B5CF6', margin: '0 0 10px 0' }}>
+                            Soru {index + 1}: {question.question}
+                          </h6>
+                          <p style={{ color: '#666', fontSize: '14px', margin: '0 0 10px 0' }}>
+                            {question.question_text}
+                          </p>
+                          <div style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '8px',
+                            marginBottom: '10px'
+                          }}>
+                            <span style={{
+                              background: isCorrect ? '#4CAF50' : isBlank ? '#FF9800' : '#F44336',
+                              color: 'white',
+                              padding: '4px 8px',
+                              borderRadius: '4px',
+                              fontSize: '12px',
+                              fontWeight: 'bold'
+                            }}>
+                              {isCorrect ? '✅ Doğru' : isBlank ? '⭕ Boş' : '❌ Yanlış'}
+                            </span>
+                          </div>
+                        </div>
+                        
+                        <div>
+                          <div style={{ marginBottom: '10px' }}>
+                            <strong style={{ color: '#495057', fontSize: '14px' }}>Sizin Cevabınız:</strong>
+                            <div style={{
+                              background: isCorrect ? '#e8f5e8' : isBlank ? '#fff3e0' : '#ffebee',
+                              padding: '8px',
+                              borderRadius: '4px',
+                              marginTop: '5px',
+                              color: isCorrect ? '#2E7D32' : isBlank ? '#E65100' : '#C62828',
+                              fontStyle: isBlank ? 'italic' : 'normal'
+                            }}>
+                              {isBlank ? 'Boş bırakıldı' : userAnswer}
+                            </div>
+                          </div>
+                          
+                          <div>
+                            <strong style={{ color: '#495057', fontSize: '14px' }}>Doğru Cevap:</strong>
+                            <div style={{
+                              background: '#e3f2fd',
+                              padding: '8px',
+                              borderRadius: '4px',
+                              marginTop: '5px',
+                              color: '#1565C0'
+                            }}>
+                              {correctAnswer}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
             {/* Geri Bildirim */}
             {readingResult.feedback && (
@@ -603,7 +785,8 @@ const TestEvaluation: React.FC<TestEvaluationProps> = ({
             <div style={{
               display: 'grid',
               gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-              gap: '15px'
+              gap: '15px',
+              marginBottom: '25px'
             }}>
               <div style={{
                 background: '#e8f5e8',
@@ -631,6 +814,106 @@ const TestEvaluation: React.FC<TestEvaluationProps> = ({
                 <div style={{ color: '#C62828', fontSize: '14px' }}>Yanlış</div>
               </div>
             </div>
+
+            {/* Yanlış Cevaplar */}
+            {listeningTest && listeningAnswers && (
+              <div style={{
+                background: '#f8f9fa',
+                padding: '20px',
+                borderRadius: '12px',
+                border: '1px solid #dee2e6'
+              }}>
+                <h5 style={{ color: '#8B5CF6', margin: '0 0 15px 0' }}>📝 Soru Bazında Değerlendirme</h5>
+                
+                <div style={{ display: 'grid', gap: '15px' }}>
+                  {listeningTest.sections?.map((section: any, sectionIndex: number) => (
+                    <div key={sectionIndex} style={{
+                      background: 'white',
+                      padding: '20px',
+                      borderRadius: '12px',
+                      border: '2px solid #8B5CF6'
+                    }}>
+                      <h6 style={{ color: '#8B5CF6', margin: '0 0 15px 0', fontSize: '18px' }}>
+                        Bölüm {sectionIndex + 1}: {section.title || `Listening Bölüm ${sectionIndex + 1}`}
+                      </h6>
+                      
+                      <div style={{ display: 'grid', gap: '10px' }}>
+                        {section.questions?.map((question: any, questionIndex: number) => {
+                          const userAnswer = listeningAnswers[question.id] || '';
+                          const correctAnswer = question.correct_answer;
+                          const isCorrect = userAnswer.toLowerCase().trim() === String(correctAnswer).toLowerCase().trim();
+                          const isBlank = !userAnswer || userAnswer.trim() === '';
+                          
+                          return (
+                            <div key={question.id} style={{
+                              background: '#f8f9fa',
+                              padding: '15px',
+                              borderRadius: '8px',
+                              border: `2px solid ${isCorrect ? '#4CAF50' : isBlank ? '#FF9800' : '#F44336'}`,
+                              display: 'grid',
+                              gridTemplateColumns: '1fr 1fr',
+                              gap: '15px'
+                            }}>
+                              <div>
+                                <h6 style={{ color: '#8B5CF6', margin: '0 0 10px 0' }}>
+                                  Soru {questionIndex + 1}: {question.question}
+                                </h6>
+                                <div style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '8px',
+                                  marginBottom: '10px'
+                                }}>
+                                  <span style={{
+                                    background: isCorrect ? '#4CAF50' : isBlank ? '#FF9800' : '#F44336',
+                                    color: 'white',
+                                    padding: '4px 8px',
+                                    borderRadius: '4px',
+                                    fontSize: '12px',
+                                    fontWeight: 'bold'
+                                  }}>
+                                    {isCorrect ? '✅ Doğru' : isBlank ? '⭕ Boş' : '❌ Yanlış'}
+                                  </span>
+                                </div>
+                              </div>
+                              
+                              <div>
+                                <div style={{ marginBottom: '10px' }}>
+                                  <strong style={{ color: '#495057', fontSize: '14px' }}>Sizin Cevabınız:</strong>
+                                  <div style={{
+                                    background: isCorrect ? '#e8f5e8' : isBlank ? '#fff3e0' : '#ffebee',
+                                    padding: '8px',
+                                    borderRadius: '4px',
+                                    marginTop: '5px',
+                                    color: isCorrect ? '#2E7D32' : isBlank ? '#E65100' : '#C62828',
+                                    fontStyle: isBlank ? 'italic' : 'normal'
+                                  }}>
+                                    {isBlank ? 'Boş bırakıldı' : userAnswer}
+                                  </div>
+                                </div>
+                                
+                                <div>
+                                  <strong style={{ color: '#495057', fontSize: '14px' }}>Doğru Cevap:</strong>
+                                  <div style={{
+                                    background: '#e3f2fd',
+                                    padding: '8px',
+                                    borderRadius: '4px',
+                                    marginTop: '5px',
+                                    color: '#1565C0'
+                                  }}>
+                                    {correctAnswer}
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
 

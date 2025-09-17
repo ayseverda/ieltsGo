@@ -182,7 +182,7 @@ async def generate_visual():
     kind = random.choice(kinds)
 
     if kind == "table":
-    return {
+        return {
             "type": "table",
             "columns": ["Year", "Category A", "Category B"],
             "rows": [[2018, 30, 20], [2022, 45, 35]]

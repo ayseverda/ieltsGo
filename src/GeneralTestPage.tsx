@@ -58,6 +58,16 @@ const GeneralTestPage: React.FC = () => {
   const [speakingEvaluating, setSpeakingEvaluating] = useState<boolean>(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
+  
+  // İnteraktif Speaking için yeni state'ler (gelecekte kullanılabilir)
+  // const [conversationHistory, setConversationHistory] = useState<Array<{
+  //   part: number;
+  //   question: string;
+  //   answer: string;
+  //   questionNumber: number;
+  // }>>([]);
+  const [isInteractiveMode] = useState<boolean>(false); // Backend'den soruları al
+  // const [questionsPerPart] = useState<number>(4); // Her part'ta 4 soru
   // const audioRefs = useRef<{ [key: string]: HTMLAudioElement }>({});
 
   // Genel deneme sonuçları için state'ler
@@ -79,37 +89,106 @@ const GeneralTestPage: React.FC = () => {
   const [showDetailedEvaluation, setShowDetailedEvaluation] = useState<boolean>(false);
   const [showTestEvaluation, setShowTestEvaluation] = useState<boolean>(false);
   const [listeningResult, setListeningResult] = useState<any>(null);
+  
+  // Modül tamamlanma durumları
+  const [moduleCompletion, setModuleCompletion] = useState<{
+    reading: boolean;
+    writing: boolean;
+    speaking: boolean;
+    listening: boolean;
+  }>({
+    reading: false,
+    writing: false,
+    speaking: false,
+    listening: false
+  });
   // Speaking test başlatma fonksiyonu
   const startSpeakingTest = async () => {
     try {
       setSpeakingLoading(true);
       setSpeakingError('');
       
-      // AI ile speaking soruları oluştur
-      const response = await fetch('http://localhost:8005/generate-test', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          part1_count: 4,
-          part3_count: 3,
-          difficulty: 'intermediate'
-        })
-      });
-      
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Speaking test generation error:', errorText);
-        throw new Error(`Test oluşturma hatası: ${response.status} - ${errorText}`);
+      // Cache kontrolü - aynı test zaten oluşturulmuş mu?
+      const cacheKey = 'speaking_test_initial';
+      const cachedTest = localStorage.getItem(cacheKey);
+      if (cachedTest) {
+        console.log('📦 Cache\'den speaking test yükleniyor...');
+        const testData = JSON.parse(cachedTest);
+        setSpeakingQuestions(testData);
+        setSpeakingTestStarted(true);
+        setSpeakingPart(1);
+        setCurrentSpeakingQuestion(0);
+        // setConversationHistory([]);
+        return;
       }
       
-      const data = await response.json();
-      setSpeakingQuestions(data);
-      setSpeakingTestStarted(true);
-      setSpeakingPart(1);
-      setCurrentSpeakingQuestion(0);
-      
-      // Sorular için ses dosyaları oluştur
-      await generateAudioForQuestions(data);
+      if (isInteractiveMode) {
+        // İnteraktif mod - sadece ilk soruları oluştur
+        const initialQuestions = {
+          part1: [
+            { question: "What's your name?", audioUrl: '' },
+            { question: "Where are you from?", audioUrl: '' },
+            { question: "What do you do for work?", audioUrl: '' },
+            { question: "Do you like your job?", audioUrl: '' }
+          ],
+          part2: { 
+            topic: "Describe a memorable trip you took", 
+            bullets: ["Where did you go?", "Who did you go with?", "What did you do there?", "Why was it memorable?"],
+            audioUrl: ''
+          },
+          part3: [
+            { question: "How has technology changed the way people travel?", audioUrl: '' },
+            { question: "What are the benefits of traveling to different countries?", audioUrl: '' },
+            { question: "Do you think tourism has more positive or negative effects?", audioUrl: '' },
+            { question: "How important is it to learn about other cultures?", audioUrl: '' }
+          ]
+        };
+        
+        // İlk sorular için ses dosyaları oluştur
+        console.log('🔊 İlk sorular için ses dosyaları oluşturuluyor...');
+        const questionsWithAudio = await generateAudioForQuestions(initialQuestions);
+        
+        // Ses dosyaları oluşturulduktan sonra state'i set et
+        setSpeakingQuestions(questionsWithAudio);
+        setSpeakingTestStarted(true);
+        setSpeakingPart(1);
+        setCurrentSpeakingQuestion(0);
+        // setConversationHistory([]);
+        
+        // Cache'e kaydet (ses dosyaları ile birlikte)
+        localStorage.setItem(cacheKey, JSON.stringify(questionsWithAudio));
+        console.log('💾 Speaking test cache\'e kaydedildi');
+      } else {
+        // Eski mod - tüm soruları oluştur
+        const response = await fetch('http://localhost:8005/generate-test', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            part1_count: 4,
+            part3_count: 3,
+            difficulty: 'intermediate'
+          })
+        });
+        
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error('Speaking test generation error:', errorText);
+          throw new Error(`Test oluşturma hatası: ${response.status} - ${errorText}`);
+        }
+        
+        const data = await response.json();
+        setSpeakingQuestions(data);
+        setSpeakingTestStarted(true);
+        setSpeakingPart(1);
+        setCurrentSpeakingQuestion(0);
+        
+        // Sorular için ses dosyaları oluştur
+        const questionsWithAudio = await generateAudioForQuestions(data);
+        
+        // Cache'e kaydet (ses dosyaları ile birlikte)
+        localStorage.setItem(cacheKey, JSON.stringify(questionsWithAudio));
+        console.log('💾 Speaking test cache\'e kaydedildi');
+      }
       
     } catch (error: any) {
       setSpeakingError(error.message || 'Test oluşturma hatası');
@@ -118,46 +197,48 @@ const GeneralTestPage: React.FC = () => {
     }
   };
 
-  // Sorular için ses dosyaları oluştur
+  // İnteraktif soru-cevap fonksiyonu (gelecekte kullanılabilir)
+  // const getNextInteractiveQuestion = async (userAnswer: string) => { ... }
+
+  // Sorular için ses dosyaları oluştur ve güncellenmiş questions objesini döndür
   const generateAudioForQuestions = async (questions: any) => {
     try {
+      const updatedQuestions = { ...questions };
+      
       // Part 1 soruları için ses oluştur
       for (let i = 0; i < questions.part1.length; i++) {
+        console.log(`🔊 Part 1 soru ${i+1} için ses oluşturuluyor:`, questions.part1[i].question);
         const audioUrl = await generateAudio(questions.part1[i].question);
-        setSpeakingQuestions(prev => ({
-          ...prev,
-          part1: prev.part1.map((q, idx) => 
-            idx === i ? { ...q, audioUrl } : q
-          )
-        }));
+        console.log(`✅ Part 1 soru ${i+1} ses URL'si:`, audioUrl ? 'Başarılı' : 'Başarısız');
+        updatedQuestions.part1[i] = { ...questions.part1[i], audioUrl: audioUrl || '' };
       }
       
       // Part 2 için ses oluştur
       const part2Text = `Topic: ${questions.part2.topic}. ${questions.part2.bullets.join('. ')}`;
+      console.log(`🔊 Part 2 için ses oluşturuluyor:`, part2Text.substring(0, 50) + '...');
       const part2AudioUrl = await generateAudio(part2Text);
-      setSpeakingQuestions(prev => ({
-        ...prev,
-        part2: { ...prev.part2, audioUrl: part2AudioUrl }
-      }));
+      console.log(`✅ Part 2 ses URL'si:`, part2AudioUrl ? 'Başarılı' : 'Başarısız');
+      updatedQuestions.part2 = { ...questions.part2, audioUrl: part2AudioUrl || '' };
       
       // Part 3 soruları için ses oluştur
       for (let i = 0; i < questions.part3.length; i++) {
+        console.log(`🔊 Part 3 soru ${i+1} için ses oluşturuluyor:`, questions.part3[i].question);
         const audioUrl = await generateAudio(questions.part3[i].question);
-        setSpeakingQuestions(prev => ({
-          ...prev,
-          part3: prev.part3.map((q, idx) => 
-            idx === i ? { ...q, audioUrl } : q
-          )
-        }));
+        console.log(`✅ Part 3 soru ${i+1} ses URL'si:`, audioUrl ? 'Başarılı' : 'Başarısız');
+        updatedQuestions.part3[i] = { ...questions.part3[i], audioUrl: audioUrl || '' };
       }
+      
+      return updatedQuestions;
     } catch (error) {
       console.error('Audio generation error:', error);
+      return questions; // Hata durumunda orijinal questions'ı döndür
     }
   };
 
   // Text'i ses'e çevir
-  const generateAudio = async (text: string): Promise<string> => {
+  const generateAudio = async (text: string): Promise<string | null> => {
     try {
+      console.log('🔊 TTS API çağrısı başlatılıyor:', text.substring(0, 50) + '...');
       const response = await fetch('http://localhost:8005/text-to-speech', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -168,14 +249,17 @@ const GeneralTestPage: React.FC = () => {
       });
       
       if (!response.ok) {
-        throw new Error('TTS error');
+        const errorText = await response.text();
+        console.error('❌ TTS API hatası:', response.status, errorText);
+        throw new Error(`TTS API error: ${response.status} - ${errorText}`);
       }
       
       const data = await response.json();
+      console.log('✅ TTS API\'den ses alındı');
       return `data:audio/mpeg;base64,${data.audio_data}`;
     } catch (error) {
-      console.error('TTS error:', error);
-      return '';
+      console.error('❌ TTS error:', error);
+      return null; // Boş string yerine null döndür
     }
   };
 
@@ -278,6 +362,16 @@ const GeneralTestPage: React.FC = () => {
       setSpeakingEvaluating(true);
       setSpeakingError('');
       
+      // Cache kontrolü - aynı cevaplar zaten değerlendirilmiş mi?
+      const cacheKey = `speaking_result_${JSON.stringify(speakingAnswers).slice(0, 100)}`;
+      const cachedResult = localStorage.getItem(cacheKey);
+      if (cachedResult) {
+        console.log('📦 Cache\'den speaking sonucu yükleniyor...');
+        setSpeakingEvaluation(JSON.parse(cachedResult));
+        setSpeakingEvaluating(false);
+        return;
+      }
+      
       const response = await fetch('http://localhost:8005/evaluate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -294,7 +388,12 @@ const GeneralTestPage: React.FC = () => {
       }
       
       const evaluation = await response.json();
+      console.log('✅ API\'den speaking sonucu alındı:', evaluation);
       setSpeakingEvaluation(evaluation);
+      
+      // Cache'e kaydet
+      localStorage.setItem(cacheKey, JSON.stringify(evaluation));
+      console.log('💾 Speaking sonucu cache\'e kaydedildi');
       
     } catch (error: any) {
       setSpeakingError(error.message || 'Değerlendirme hatası');
@@ -398,6 +497,65 @@ const GeneralTestPage: React.FC = () => {
     setCurrentStep(0);
     setTimeLeft(0);
     setIsPaused(false);
+    setShowDetailedEvaluation(false);
+    setShowTestEvaluation(false);
+    
+    // Tüm modül durumlarını sıfırla
+    setModuleCompletion({
+      listening: false,
+      reading: false,
+      writing: false,
+      speaking: false
+    });
+    
+    // Reading modülü durumlarını sıfırla
+    setReadingTest(null);
+    setReadingAnswers({});
+    setReadingResult(null);
+    setReadingError('');
+    setCurrentReadingPassage(0);
+    
+    // Writing modülü durumlarını sıfırla
+    setWritingTopics({});
+    setWritingEssays({});
+    setWritingResults({});
+    setWritingError('');
+    setCurrentWritingTask(0);
+    
+    // Speaking modülü durumlarını sıfırla
+    setSpeakingTestStarted(false);
+    setSpeakingPart(1);
+    setCurrentSpeakingQuestion(0);
+    setSpeakingQuestions({ part1: [], part2: { topic: '', bullets: [] }, part3: [] });
+    setSpeakingAnswers({ part1: [], part2: '', part3: [] });
+    setSpeakingEvaluation(null);
+    setSpeakingError('');
+    setSpeakingEvaluating(false);
+    
+    // Cache'i temizle
+    clearTestCache();
+  };
+
+  // Cache temizleme fonksiyonu
+  const clearTestCache = () => {
+    const keysToRemove = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && (
+        key.startsWith('reading_result_') ||
+        key.startsWith('reading_test_') ||
+        key.startsWith('listening_test_') ||
+        key.startsWith('writing_result_') ||
+        key.startsWith('writing_topics_') ||
+        key.startsWith('speaking_result_') ||
+        key.startsWith('speaking_test_') ||
+        key.startsWith('dashboard_save_')
+      )) {
+        keysToRemove.push(key);
+      }
+    }
+    keysToRemove.forEach(key => localStorage.removeItem(key));
+    console.log('🗑️ Test cache temizlendi:', keysToRemove.length, 'öğe');
   };
 
   // Genel deneme bittiğinde puanı kaydet ve streak güncelle
@@ -591,15 +749,21 @@ const GeneralTestPage: React.FC = () => {
   const generateWritingTopic = async (taskKey: string) => {
     try {
       setWritingLoading(true);
+      
+      console.log(`🔄 API'den ${taskKey} konusu üretiliyor...`);
       const response = await fetch(`http://localhost:8002/topic?mode=${writingMode}&task=${taskKey}`);
       if (response.ok) {
         const data = await response.json();
+        console.log(`✅ API'den ${taskKey} konusu alındı:`, data.topic);
         setWritingTopics(prev => ({ ...prev, [taskKey]: data.topic }));
+        return data.topic;
       } else {
         setWritingError('Konu üretimi başarısız.');
+        return null;
       }
     } catch (e: any) {
       setWritingError('Konu üretimi hatası: ' + e.message);
+      return null;
     } finally {
       setWritingLoading(false);
     }
@@ -610,6 +774,15 @@ const GeneralTestPage: React.FC = () => {
     const essay = writingEssays[taskKey];
     if (!essay || essay.trim().length < 50) {
       setWritingError('Lütfen en az 50 kelimelik bir essay yazın.');
+      return;
+    }
+
+    // Cache kontrolü - aynı essay zaten değerlendirilmiş mi?
+    const cacheKey = `writing_result_${taskKey}_${essay.slice(0, 100)}`;
+    const cachedResult = localStorage.getItem(cacheKey);
+    if (cachedResult) {
+      console.log('📦 Cache\'den writing sonucu yükleniyor...');
+      setWritingResults(prev => ({ ...prev, [taskKey]: JSON.parse(cachedResult) }));
       return;
     }
 
@@ -628,7 +801,12 @@ const GeneralTestPage: React.FC = () => {
 
       if (response.ok) {
         const data = await response.json();
+        console.log('✅ API\'den writing sonucu alındı:', data);
         setWritingResults(prev => ({ ...prev, [taskKey]: data }));
+        
+        // Cache'e kaydet
+        localStorage.setItem(cacheKey, JSON.stringify(data));
+        console.log('💾 Writing sonucu cache\'e kaydedildi');
       } else {
         const errorData = await response.text();
         setWritingError('Değerlendirme başarısız: ' + errorData);
@@ -648,9 +826,29 @@ const GeneralTestPage: React.FC = () => {
     setWritingResults({});
     setCurrentWritingTask(0);
     
+    // Cache kontrolü - aynı writing konuları zaten oluşturulmuş mu?
+    const cacheKey = `writing_topics_${writingMode}`;
+    const cachedTopics = localStorage.getItem(cacheKey);
+    if (cachedTopics) {
+      console.log('📦 Cache\'den writing konuları yükleniyor...');
+      const topicsData = JSON.parse(cachedTopics);
+      setWritingTopics(topicsData);
+      return;
+    }
+    
     // Her iki task için de konu üret
-    await generateWritingTopic('task1');
-    await generateWritingTopic('task2');
+    const task1Topic = await generateWritingTopic('task1');
+    const task2Topic = await generateWritingTopic('task2');
+    
+    // Konular üretildikten sonra cache'e kaydet
+    if (task1Topic && task2Topic) {
+      const topicsData = {
+        task1: task1Topic,
+        task2: task2Topic
+      };
+      localStorage.setItem(cacheKey, JSON.stringify(topicsData));
+      console.log('💾 Writing konuları cache\'e kaydedildi');
+    }
   };
 
   // Reading test başlatma fonksiyonu
@@ -661,12 +859,29 @@ const GeneralTestPage: React.FC = () => {
     setReadingAnswers({});
     setCurrentReadingPassage(0);
     
+    // Cache kontrolü - aynı reading test zaten oluşturulmuş mu?
+    const cacheKey = 'reading_test_academic';
+    const cachedTest = localStorage.getItem(cacheKey);
+    if (cachedTest) {
+      console.log('📦 Cache\'den reading test yükleniyor...');
+      const testData = JSON.parse(cachedTest);
+      setReadingTest(testData);
+      setReadingLoading(false);
+      return;
+    }
+    
     try {
-      console.log('🔄 Reading testi üretiliyor...');
+      console.log('🔄 API\'den reading testi üretiliyor...');
+      
+      // Token'ı al
+      const token = localStorage.getItem('token');
       
       const response = await fetch('http://localhost:8001/generate-ielts-academic', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          ...(token && { 'Authorization': `Bearer ${token}` })
+        },
         body: JSON.stringify({ 
           topic: 'Academic', 
           difficulty: 'Medium',
@@ -678,10 +893,14 @@ const GeneralTestPage: React.FC = () => {
 
       if (response.ok) {
         const data = await response.json();
-        console.log('✅ Reading testi başarıyla üretildi:', data.id);
+        console.log('✅ API\'den reading testi alındı:', data.id);
         
         setReadingTest(data);
         setReadingSelectedId(data.id);
+        
+        // Cache'e kaydet
+        localStorage.setItem(cacheKey, JSON.stringify(data));
+        console.log('💾 Reading test cache\'e kaydedildi');
         
         // Test listesine ekle
         setReadingTests(prev => {
@@ -733,15 +952,31 @@ const GeneralTestPage: React.FC = () => {
 
   const submitReading = async () => {
     if (!readingTest) return;
+    
+    // Cache kontrolü - aynı test zaten değerlendirilmiş mi?
+    const cacheKey = `reading_result_${readingSelectedId}`;
+    const cachedResult = localStorage.getItem(cacheKey);
+    if (cachedResult) {
+      console.log('📦 Cache\'den reading sonucu yükleniyor...');
+      setReadingResult(JSON.parse(cachedResult));
+      return;
+    }
+    
     try {
       setReadingLoading(true);
       console.log('🔍 Değerlendirme başlıyor...');
       console.log('📋 Test ID:', readingSelectedId);
       console.log('📝 Cevaplar:', readingAnswers);
       
+      // Token'ı al
+      const token = localStorage.getItem('token');
+      
       const res = await fetch('http://localhost:8001/submit', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          ...(token && { 'Authorization': `Bearer ${token}` })
+        },
         body: JSON.stringify({ 
           test_id: readingSelectedId, 
           answers: readingAnswers,
@@ -753,8 +988,12 @@ const GeneralTestPage: React.FC = () => {
       
       if (res.ok) {
         const data = await res.json();
-        console.log('✅ Değerlendirme başarılı:', data);
+        console.log('✅ API\'den reading sonucu alındı:', data);
         setReadingResult(data);
+        
+        // Cache'e kaydet
+        localStorage.setItem(cacheKey, JSON.stringify(data));
+        console.log('💾 Reading sonucu cache\'e kaydedildi');
       } else {
         const errorText = await res.text();
         console.error('❌ Değerlendirme hatası:', res.status, errorText);
@@ -777,6 +1016,18 @@ const GeneralTestPage: React.FC = () => {
       setAnswers({});
       setShowTranscript(false); // Metin başlangıçta gizli
       
+      // Cache kontrolü - aynı listening test zaten oluşturulmuş mu?
+      const cacheKey = 'listening_test_ielts';
+      const cachedTest = localStorage.getItem(cacheKey);
+      if (cachedTest) {
+        console.log('📦 Cache\'den listening test yükleniyor...');
+        const testData = JSON.parse(cachedTest);
+        setListeningContent(testData);
+        return;
+      }
+      
+      console.log('🔄 API\'den listening testi üretiliyor...');
+      
       // Backend'den IELTS Listening içeriği al
       const response = await fetch('http://localhost:8003/generate-ielts-listening', {
         method: 'POST',
@@ -792,31 +1043,106 @@ const GeneralTestPage: React.FC = () => {
       
       if (response.ok) {
         const data = await response.json();
+        console.log('✅ API\'den listening testi alındı:', data);
         setListeningContent(data);
-        console.log('Listening content loaded:', data);
+        
+        // Cache'e kaydet
+        localStorage.setItem(cacheKey, JSON.stringify(data));
+        console.log('💾 Listening test cache\'e kaydedildi');
       } else {
         console.error('Failed to load listening content');
-        // Fallback data
+        // Fallback data - IELTS Listening 4 bölüm 40 soru
         setListeningContent({
           sections: [
             {
-              id: 1,
-              title: "Günlük Konuşma",
-              description: "İki kişi arasında günlük konuşma",
-              audio_script: "Hello, I'd like to book a table for two people for tonight at 7 PM. Yes, we have availability. What name should I put it under? Smith, John Smith. Perfect, I've reserved a table for two under Smith for 7 PM tonight. Thank you very much!",
+              id: 'section1',
+              title: 'Conversation - Travel Information',
+              audio_script: 'Good morning, can I help you with travel information? Yes, I\'m looking for information about train services to Cambridge. The next train to Cambridge departs at 10:15 from platform 3. The journey takes approximately 45 minutes and costs £12.50 for a standard ticket. You can purchase tickets from the ticket office or use the self-service machines.',
               questions: [
-                { id: 1, question: "What time does the customer want to book the table?", type: "multiple_choice", options: ["6 PM", "7 PM", "8 PM", "9 PM"], correct_answer: "7 PM" },
-                { id: 2, question: "How many people is the table for?", type: "fill_blank", correct_answer: "two" }
-              ],
-              duration: 5
+                { id: 'q1', question: 'What time does the train to Cambridge depart?', type: 'multiple_choice', options: ['10:15', '10:30', '10:45', '11:00'], correct_answer: '10:15' },
+                { id: 'q2', question: 'Which platform does the train leave from?', type: 'multiple_choice', options: ['Platform 1', 'Platform 2', 'Platform 3', 'Platform 4'], correct_answer: 'Platform 3' },
+                { id: 'q3', question: 'How long does the journey take?', type: 'fill_blank', correct_answer: '45 minutes' },
+                { id: 'q4', question: 'What is the cost of a standard ticket?', type: 'fill_blank', correct_answer: '£12.50' },
+                { id: 'q5', question: 'Where can tickets be purchased?', type: 'multiple_choice', options: ['Online only', 'Ticket office only', 'Ticket office or self-service machines', 'On the train'], correct_answer: 'Ticket office or self-service machines' },
+                { id: 'q6', question: 'The train journey is longer than 30 minutes.', type: 'true_false', correct_answer: 'True' },
+                { id: 'q7', question: 'Self-service machines are not available.', type: 'true_false', correct_answer: 'False' },
+                { id: 'q8', question: 'The next train is at 10:30.', type: 'true_false', correct_answer: 'False' },
+                { id: 'q9', question: 'Tickets cost more than £15.', type: 'true_false', correct_answer: 'False' },
+                { id: 'q10', question: 'The service is available every hour.', type: 'true_false', correct_answer: 'Not Given' }
+              ]
+            },
+            {
+              id: 'section2',
+              title: 'Monologue - University Library',
+              audio_script: 'Welcome to the university library. Our library is open Monday to Friday from 8 AM to 10 PM, and weekends from 9 AM to 6 PM. We have over 500,000 books, journals, and digital resources. Students can borrow up to 20 books for 4 weeks. Late returns incur a fine of 50p per day. The library offers study spaces, computer facilities, and printing services.',
+              questions: [
+                { id: 'q11', question: 'What are the weekend opening hours?', type: 'multiple_choice', options: ['8 AM to 6 PM', '9 AM to 6 PM', '9 AM to 10 PM', '8 AM to 10 PM'], correct_answer: '9 AM to 6 PM' },
+                { id: 'q12', question: 'How many books can students borrow?', type: 'fill_blank', correct_answer: '20 books' },
+                { id: 'q13', question: 'What is the borrowing period?', type: 'fill_blank', correct_answer: '4 weeks' },
+                { id: 'q14', question: 'What is the daily fine for late returns?', type: 'fill_blank', correct_answer: '50p' },
+                { id: 'q15', question: 'The library has over 500,000 resources.', type: 'true_false', correct_answer: 'True' },
+                { id: 'q16', question: 'Printing services are not available.', type: 'true_false', correct_answer: 'False' },
+                { id: 'q17', question: 'The library is closed on Sundays.', type: 'true_false', correct_answer: 'False' },
+                { id: 'q18', question: 'Computer facilities are provided.', type: 'true_false', correct_answer: 'True' },
+                { id: 'q19', question: 'Students can borrow books for 3 weeks.', type: 'true_false', correct_answer: 'False' },
+                { id: 'q20', question: 'The library opens at 7 AM on weekdays.', type: 'true_false', correct_answer: 'False' }
+              ]
+            },
+            {
+              id: 'section3',
+              title: 'Discussion - Environmental Science',
+              audio_script: 'Today we\'re discussing climate change research. Dr. Smith has been studying the effects of global warming on polar ice caps for over 15 years. Her research shows that ice caps are melting at an unprecedented rate. The average temperature has risen by 1.5 degrees Celsius over the past century. This has led to rising sea levels and extreme weather patterns. We need immediate action to reduce carbon emissions.',
+              questions: [
+                { id: 'q21', question: 'How long has Dr. Smith been studying polar ice caps?', type: 'fill_blank', correct_answer: '15 years' },
+                { id: 'q22', question: 'What is the temperature increase over the past century?', type: 'fill_blank', correct_answer: '1.5 degrees Celsius' },
+                { id: 'q23', question: 'What is the main concern about ice caps?', type: 'multiple_choice', options: ['They are growing', 'They are melting rapidly', 'They are stable', 'They are shrinking slowly'], correct_answer: 'They are melting rapidly' },
+                { id: 'q24', question: 'What has caused rising sea levels?', type: 'multiple_choice', options: ['Rainfall', 'Ice cap melting', 'Ocean currents', 'Wind patterns'], correct_answer: 'Ice cap melting' },
+                { id: 'q25', question: 'What action is needed?', type: 'fill_blank', correct_answer: 'reduce carbon emissions' },
+                { id: 'q26', question: 'Dr. Smith\'s research shows ice caps are growing.', type: 'true_false', correct_answer: 'False' },
+                { id: 'q27', question: 'Temperature has risen by 2 degrees.', type: 'true_false', correct_answer: 'False' },
+                { id: 'q28', question: 'Extreme weather patterns have increased.', type: 'true_false', correct_answer: 'True' },
+                { id: 'q29', question: 'The research has been ongoing for 20 years.', type: 'true_false', correct_answer: 'False' },
+                { id: 'q30', question: 'Immediate action is required.', type: 'true_false', correct_answer: 'True' }
+              ]
+            },
+            {
+              id: 'section4',
+              title: 'Lecture - Business Management',
+              audio_script: 'In today\'s business world, effective leadership is crucial for organizational success. Modern leaders must adapt to changing technologies and global markets. Key leadership qualities include communication skills, emotional intelligence, and strategic thinking. Companies that invest in leadership development see 25% higher employee satisfaction and 15% better financial performance. Leadership training programs typically last 6 months and cost around £5,000 per participant.',
+              questions: [
+                { id: 'q31', question: 'What is crucial for organizational success?', type: 'fill_blank', correct_answer: 'effective leadership' },
+                { id: 'q32', question: 'What percentage improvement in employee satisfaction?', type: 'fill_blank', correct_answer: '25%' },
+                { id: 'q33', question: 'What is the financial performance improvement?', type: 'fill_blank', correct_answer: '15%' },
+                { id: 'q34', question: 'How long do leadership training programs last?', type: 'fill_blank', correct_answer: '6 months' },
+                { id: 'q35', question: 'What is the cost per participant?', type: 'fill_blank', correct_answer: '£5,000' },
+                { id: 'q36', question: 'Communication skills are important for leaders.', type: 'true_false', correct_answer: 'True' },
+                { id: 'q37', question: 'Leadership development has no impact on performance.', type: 'true_false', correct_answer: 'False' },
+                { id: 'q38', question: 'Training programs last 12 months.', type: 'true_false', correct_answer: 'False' },
+                { id: 'q39', question: 'Global markets require adaptation.', type: 'true_false', correct_answer: 'True' },
+                { id: 'q40', question: 'Emotional intelligence is not mentioned as important.', type: 'true_false', correct_answer: 'False' }
+              ]
             }
           ],
-          total_questions: 2,
-          total_duration: 5,
-          topic: "Restaurant Booking",
+          total_questions: 40,
+          total_duration: 30,
+          topic: "IELTS Listening Test",
           difficulty: "Medium",
-          instructions: "Listen to the conversation and answer the questions."
+          instructions: "Listen to the recordings and answer the questions."
         });
+        
+        // Fallback data'yı da cache'e kaydet
+        const fallbackData = {
+          sections: [
+            // ... fallback sections data ...
+          ],
+          total_questions: 40,
+          total_duration: 30,
+          topic: "IELTS Listening Test",
+          difficulty: "Medium",
+          instructions: "Listen to the recordings and answer the questions."
+        };
+        localStorage.setItem(cacheKey, JSON.stringify(fallbackData));
+        console.log('💾 Listening fallback test cache\'e kaydedildi');
       }
     } catch (error) {
       console.error('Error starting listening test:', error);
@@ -1298,6 +1624,52 @@ const GeneralTestPage: React.FC = () => {
                       Sonraki Bölüm →
                     </button>
                   </div>
+                  
+                  {/* Listening Testi Tamamla Butonu */}
+                  <div style={{ textAlign: 'center', marginTop: '30px' }}>
+                    <button 
+                      className="btn btn-primary" 
+                      onClick={() => {
+                        if (!moduleCompletion.listening) {
+                          setModuleCompletion(prev => ({ ...prev, listening: true }));
+                          setListeningResult({
+                            band_estimate: 6.5,
+                            scaled: {
+                              correct: Object.values(answers).filter(a => a).length,
+                              total: listeningContent.sections.reduce((total: number, section: any) => total + section.questions.length, 0)
+                            }
+                          });
+                        }
+                      }}
+                      style={{
+                        background: '#8B5CF6', 
+                        color: 'white', 
+                        padding: '15px 30px', 
+                        fontSize: '18px',
+                        fontWeight: 'bold',
+                        borderRadius: '25px'
+                      }}
+                    >
+                      ✅ Testi Tamamla
+                    </button>
+                    
+                    {moduleCompletion.listening && (
+                      <div style={{ textAlign: 'center', marginTop: '15px' }}>
+                        <div style={{
+                          background: 'linear-gradient(135deg, #4CAF50 0%, #45a049 100%)',
+                          color: 'white',
+                          padding: '15px',
+                          borderRadius: '10px',
+                          marginBottom: '15px'
+                        }}>
+                          <h4 style={{ margin: '0 0 5px 0', fontSize: '18px' }}>✅ Listening Modülü Tamamlandı</h4>
+                          <p style={{ margin: 0, fontSize: '14px', opacity: 0.9 }}>
+                            Test başarıyla tamamlandı
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
             </div>
@@ -1386,7 +1758,7 @@ const GeneralTestPage: React.FC = () => {
                 <div className="reading-content">
                   {/* Sayfa Navigasyonu */}
                   <div className="passage-navigation" style={{display: 'flex', justifyContent: 'center', gap: '10px', marginBottom: '20px'}}>
-                    {readingTest.passages?.map((_: any, index: number) => (
+                    {readingTest?.passages?.map((_: any, index: number) => (
                       <button
                         key={index}
                         className={`passage-nav-btn ${currentReadingPassage === index ? 'active' : ''}`}
@@ -1408,16 +1780,16 @@ const GeneralTestPage: React.FC = () => {
                   </div>
 
                   {/* Mevcut Metin ve Soruları */}
-                  {readingTest.passages && readingTest.passages[currentReadingPassage] && (
+                  {readingTest?.passages && readingTest.passages[currentReadingPassage] && (
                     <div className="current-passage-content">
                       {/* Metin */}
                       <div className="passage-section" style={{marginBottom: '30px', border: '2px solid #8B5CF6', padding: '25px', borderRadius: '12px', background: '#f8f9fa'}}>
                         <div className="passage-header" style={{marginBottom: '20px', textAlign: 'center'}}>
                           <h4 style={{color: '#8B5CF6', fontSize: '20px', margin: '0 0 10px 0'}}>
-                            Metin {currentReadingPassage + 1}: {readingTest.passages[currentReadingPassage].title}
+                            Metin {currentReadingPassage + 1}: {readingTest?.passages?.[currentReadingPassage]?.title || 'Metin'}
                           </h4>
                           <span className="passage-info" style={{color: '#666', fontSize: '14px'}}>
-                            ~{readingTest.passages[currentReadingPassage].word_count || 800} kelime
+                            ~{readingTest?.passages?.[currentReadingPassage]?.word_count || 800} kelime
                           </span>
                         </div>
                         <div className="passage-text" style={{
@@ -1429,7 +1801,7 @@ const GeneralTestPage: React.FC = () => {
                           borderRadius: '8px',
                           border: '1px solid #e0e0e0'
                         }}>
-                          {readingTest.passages[currentReadingPassage].text}
+                          {readingTest?.passages?.[currentReadingPassage]?.text || 'Metin yükleniyor...'}
                         </div>
                       </div>
 
@@ -1439,8 +1811,8 @@ const GeneralTestPage: React.FC = () => {
                           📝 Metin {currentReadingPassage + 1} Soruları
                         </h4>
                         <div className="questions-grid">
-                          {readingTest.questions
-                            ?.filter((q: any) => q.passage_id === readingTest.passages[currentReadingPassage].id)
+                          {readingTest?.questions
+                            ?.filter((q: any) => q.passage_id === readingTest.passages?.[currentReadingPassage]?.id)
                             ?.map((question: any, idx: number) => {
                               // Her metin için sorular kendi içinde 1, 2, 3... şeklinde
                               const questionNumber = idx + 1;
@@ -1450,7 +1822,7 @@ const GeneralTestPage: React.FC = () => {
                               const correctAnswer = question.correct_answer || question.answer;
                               const isAnswered = userAnswer && userAnswer.trim() !== '';
                               const isCorrect = isAnswered && userAnswer === correctAnswer;
-                              const showResult = readingResult !== null;
+                              const showResult = false; // Sonuçları gösterme, sadece test tamamlandığında gösterilecek
                               
                               return (
                                 <div key={question.id} className="question-section" style={{
@@ -1692,7 +2064,7 @@ const GeneralTestPage: React.FC = () => {
                           }}
                         >
                           ← Önceki Metin
-                        </button>
+                    </button>
                         
                         <div className="passage-info" style={{
                           display: 'flex',
@@ -1701,16 +2073,16 @@ const GeneralTestPage: React.FC = () => {
                           fontSize: '14px',
                           color: '#666'
                         }}>
-                          <span>Metin {currentReadingPassage + 1} / {readingTest.passages.length}</span>
+                          <span>Metin {currentReadingPassage + 1} / {readingTest?.passages?.length || 0}</span>
                           <span>
-                            {readingTest.questions?.filter((q: any) => q.passage_id === readingTest.passages[currentReadingPassage].id).length} soru
+                            {readingTest?.questions?.filter((q: any) => q.passage_id === readingTest?.passages?.[currentReadingPassage]?.id).length || 0} soru
                           </span>
                         </div>
                         
                         <button 
                           className="btn btn-primary"
-                          onClick={() => setCurrentReadingPassage(Math.min(readingTest.passages.length - 1, currentReadingPassage + 1))}
-                          disabled={currentReadingPassage === readingTest.passages.length - 1}
+                          onClick={() => setCurrentReadingPassage(Math.min((readingTest?.passages?.length || 1) - 1, currentReadingPassage + 1))}
+                          disabled={currentReadingPassage === (readingTest?.passages?.length || 1) - 1}
                           style={{
                             background: '#8B5CF6',
                             color: 'white',
@@ -1721,13 +2093,13 @@ const GeneralTestPage: React.FC = () => {
                           }}
                         >
                           Sonraki Metin →
-                        </button>
+                      </button>
                       </div>
                     </div>
                   )}
 
                   {/* Test Tamamlama Butonu */}
-                  {currentReadingPassage === readingTest.passages.length - 1 && (
+                  {currentReadingPassage === (readingTest?.passages?.length || 0) - 1 && (
                     <div className="reading-actions" style={{
                       display:'flex', 
                       gap:12, 
@@ -1740,7 +2112,13 @@ const GeneralTestPage: React.FC = () => {
                     }}>
                       <button 
                         className="btn btn-primary" 
-                        onClick={submitReading} 
+                        onClick={() => {
+                          if (!readingResult) {
+                            submitReading();
+                          } else if (!moduleCompletion.reading) {
+                            setModuleCompletion(prev => ({ ...prev, reading: true }));
+                          }
+                        }}
                         disabled={readingLoading}
                         style={{
                           background: '#8B5CF6', 
@@ -1753,11 +2131,20 @@ const GeneralTestPage: React.FC = () => {
                       >
                         {readingLoading ? '🔄 Değerlendiriliyor...' : '✅ Testi Tamamla'}
                     </button>
-                    {readingResult && (
+                    {moduleCompletion.reading && (
                         <div style={{ textAlign: 'center', marginTop: '15px' }}>
-                          <p style={{ color: '#8B5CF6', fontSize: '16px', fontWeight: '600' }}>
-                            ✅ Reading testi tamamlandı! Sonraki modüle geçebilirsiniz.
-                          </p>
+                          <div style={{
+                            background: 'linear-gradient(135deg, #4CAF50 0%, #45a049 100%)',
+                            color: 'white',
+                            padding: '15px',
+                            borderRadius: '10px',
+                            marginBottom: '15px'
+                          }}>
+                            <h4 style={{ margin: '0 0 5px 0', fontSize: '18px' }}>✅ Reading Modülü Tamamlandı</h4>
+                            <p style={{ margin: 0, fontSize: '14px', opacity: 0.9 }}>
+                              Test başarıyla tamamlandı
+                            </p>
+                  </div>
                         </div>
                     )}
                   </div>
@@ -1987,7 +2374,13 @@ const GeneralTestPage: React.FC = () => {
                         {/* Değerlendirme Butonu ve Sonuç */}
                         <div className="evaluation-section" style={{textAlign: 'center'}}>
                           <button
-                            onClick={() => evaluateWriting(taskKey)}
+                            onClick={() => {
+                              if (!result) {
+                                evaluateWriting(taskKey);
+                              } else if (!moduleCompletion.writing) {
+                                setModuleCompletion(prev => ({ ...prev, writing: true }));
+                              }
+                            }}
                             disabled={writingLoading || essay.trim().length < 50}
                             style={{
                               background: '#8B5CF6',
@@ -2005,11 +2398,20 @@ const GeneralTestPage: React.FC = () => {
                             {writingLoading ? '🔄 Değerlendiriliyor...' : '✅ Testi Tamamla'}
                           </button>
 
-                          {result && (
+                          {moduleCompletion.writing && (
                             <div style={{ textAlign: 'center', marginTop: '15px' }}>
-                              <p style={{ color: '#8B5CF6', fontSize: '16px', fontWeight: '600' }}>
-                                ✅ Writing testi tamamlandı! Sonraki modüle geçebilirsiniz.
-                              </p>
+                              <div style={{
+                                background: 'linear-gradient(135deg, #4CAF50 0%, #45a049 100%)',
+                                color: 'white',
+                                padding: '15px',
+                                borderRadius: '10px',
+                                marginBottom: '15px'
+                              }}>
+                                <h4 style={{ margin: '0 0 5px 0', fontSize: '18px' }}>✅ Writing Modülü Tamamlandı</h4>
+                                <p style={{ margin: 0, fontSize: '14px', opacity: 0.9 }}>
+                                  Test başarıyla tamamlandı
+                                </p>
+                              </div>
                             </div>
                           )}
                         </div>
@@ -2096,7 +2498,7 @@ const GeneralTestPage: React.FC = () => {
                   )}
                 </div>
               ) : (
-                <div>
+                        <div>
                   <div className="ielts-instructions">
                     <h3>🗣️ IELTS Speaking Test - Part {speakingPart}</h3>
                     <div className="section-controls" style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: '20px' }}>
@@ -2109,8 +2511,8 @@ const GeneralTestPage: React.FC = () => {
                   {speakingError && (
                     <div className="error-message" style={{color:'#d33', background:'#ffe6e6', padding:10, borderRadius:6, margin:'10px 0'}}>
                       ❌ {speakingError}
-                    </div>
-                  )}
+                        </div>
+                      )}
 
                   {/* Yeni Speaking UI */}
                   {speakingPart === 1 && (
@@ -2121,25 +2523,56 @@ const GeneralTestPage: React.FC = () => {
                       </p>
                       
                       <div style={{ marginBottom: '20px' }}>
-                        <div style={{ marginBottom: '10px', fontWeight: 500 }}>
-                          {currentSpeakingQuestion + 1}. {speakingQuestions.part1[currentSpeakingQuestion]?.question}
+                        <div style={{ marginBottom: '15px', textAlign: 'center' }}>
+                          <h4 style={{ color: '#8B5CF6', margin: '0 0 10px 0' }}>
+                            🎧 Part 1 - Soru {currentSpeakingQuestion + 1}
+                          </h4>
+                          <p style={{ color: '#666', fontSize: '14px', margin: '0 0 15px 0' }}>
+                            Aşağıdaki butona tıklayarak soruyu dinleyin ve cevaplayın
+                          </p>
                         </div>
                         
                         {/* Ses oynatma butonu */}
-                        {speakingQuestions.part1[currentSpeakingQuestion]?.audioUrl && (
+                        <div style={{ textAlign: 'center', marginBottom: '20px' }}>
                           <button
-                            className="btn btn-secondary"
+                            className="btn btn-primary"
                             onClick={() => {
-                              const audio = new Audio(speakingQuestions.part1[currentSpeakingQuestion].audioUrl);
-                              audio.play();
+                              const audioUrl = speakingQuestions.part1[currentSpeakingQuestion].audioUrl;
+                              if (!audioUrl || audioUrl.trim() === '') {
+                                alert('Ses dosyası henüz hazır değil. Lütfen sayfayı yenileyin ve tekrar deneyin.');
+                                return;
+                              }
+                              
+                              const audio = new Audio(audioUrl);
+                              audio.onerror = (e) => {
+                                console.error('Audio playback error:', e);
+                                alert('Ses çalarken hata oluştu. Lütfen tekrar deneyin.');
+                              };
+                              audio.play().catch((e) => {
+                                console.error('Audio play error:', e);
+                                alert('Ses çalarken hata oluştu. Lütfen tekrar deneyin.');
+                              });
                             }}
-                            style={{ marginBottom: '15px' }}
+                            style={{ 
+                              padding: '15px 30px', 
+                              fontSize: '16px',
+                              background: '#8B5CF6',
+                              color: 'white',
+                              border: 'none',
+                              borderRadius: '25px',
+                              cursor: 'pointer'
+                            }}
                           >
                             🔊 Soruyu Dinle
                           </button>
-                        )}
+                        </div>
                         
                         {/* Cevap textarea */}
+                        <div style={{ marginBottom: '10px' }}>
+                          <p style={{ fontSize: '14px', color: '#666', margin: '0 0 8px 0' }}>
+                            💡 <strong>Konuşamıyorsanız buraya yazabilirsiniz</strong>
+                          </p>
+                        </div>
                         <textarea
                           value={speakingAnswers.part1[currentSpeakingQuestion] || ''}
                           onChange={(e) => {
@@ -2201,30 +2634,56 @@ const GeneralTestPage: React.FC = () => {
                     <div className="card" style={{ marginTop: 10 }}>
                       <h4>Part 2: Long Turn (Cue Card)</h4>
                       
-                      <div style={{ background:'#f8f9fa', border:'1px solid #e0e0e0', borderRadius:8, padding:14, marginBottom: '20px' }}>
-                        <strong>Topic:</strong> {speakingQuestions.part2.topic}
-                        <ul style={{ marginTop: 8 }}>
-                          {speakingQuestions.part2.bullets.map((b, i) => (
-                            <li key={i}>{b}</li>
-                          ))}
-                        </ul>
+                      <div style={{ marginBottom: '15px', textAlign: 'center' }}>
+                        <h4 style={{ color: '#8B5CF6', margin: '0 0 10px 0' }}>
+                          🎧 Part 2 - Cue Card
+                        </h4>
+                        <p style={{ color: '#666', fontSize: '14px', margin: '0 0 15px 0' }}>
+                          Aşağıdaki butona tıklayarak konuyu dinleyin ve 2 dakika konuşun
+                        </p>
                       </div>
                       
                       {/* Ses oynatma butonu */}
-                      {speakingQuestions.part2.audioUrl && (
+                      <div style={{ textAlign: 'center', marginBottom: '20px' }}>
                         <button
-                          className="btn btn-secondary"
+                          className="btn btn-primary"
                           onClick={() => {
-                            const audio = new Audio(speakingQuestions.part2.audioUrl);
-                            audio.play();
+                            const audioUrl = speakingQuestions.part2.audioUrl;
+                            if (!audioUrl || audioUrl.trim() === '') {
+                              alert('Ses dosyası henüz hazır değil. Lütfen sayfayı yenileyin ve tekrar deneyin.');
+                              return;
+                            }
+                            
+                            const audio = new Audio(audioUrl);
+                            audio.onerror = (e) => {
+                              console.error('Audio playback error:', e);
+                              alert('Ses çalarken hata oluştu. Lütfen tekrar deneyin.');
+                            };
+                            audio.play().catch((e) => {
+                              console.error('Audio play error:', e);
+                              alert('Ses çalarken hata oluştu. Lütfen tekrar deneyin.');
+                            });
                           }}
-                          style={{ marginBottom: '15px' }}
+                          style={{ 
+                            padding: '15px 30px', 
+                            fontSize: '16px',
+                            background: '#8B5CF6',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '25px',
+                            cursor: 'pointer'
+                          }}
                         >
                           🔊 Cue Card'ı Dinle
                         </button>
-                      )}
+                      </div>
                       
                       {/* Cevap textarea */}
+                      <div style={{ marginBottom: '10px' }}>
+                        <p style={{ fontSize: '14px', color: '#666', margin: '0 0 8px 0' }}>
+                          💡 <strong>Konuşamıyorsanız buraya yazabilirsiniz</strong>
+                        </p>
+                      </div>
                       <textarea
                         value={speakingAnswers.part2}
                         onChange={(e) => {
@@ -2265,25 +2724,56 @@ const GeneralTestPage: React.FC = () => {
                       </p>
                       
                       <div style={{ marginBottom: '20px' }}>
-                        <div style={{ marginBottom: '10px', fontWeight: 500 }}>
-                          {currentSpeakingQuestion + 1}. {speakingQuestions.part3[currentSpeakingQuestion]?.question}
+                        <div style={{ marginBottom: '15px', textAlign: 'center' }}>
+                          <h4 style={{ color: '#8B5CF6', margin: '0 0 10px 0' }}>
+                            🎧 Part 3 - Soru {currentSpeakingQuestion + 1}
+                          </h4>
+                          <p style={{ color: '#666', fontSize: '14px', margin: '0 0 15px 0' }}>
+                            Aşağıdaki butona tıklayarak soruyu dinleyin ve cevaplayın
+                          </p>
                         </div>
                         
                         {/* Ses oynatma butonu */}
-                        {speakingQuestions.part3[currentSpeakingQuestion]?.audioUrl && (
+                        <div style={{ textAlign: 'center', marginBottom: '20px' }}>
                           <button
-                            className="btn btn-secondary"
-                            onClick={() => {
-                              const audio = new Audio(speakingQuestions.part3[currentSpeakingQuestion].audioUrl);
-                              audio.play();
+                            className="btn btn-primary"
+                          onClick={() => {
+                            const audioUrl = speakingQuestions.part3[currentSpeakingQuestion].audioUrl;
+                            if (!audioUrl || audioUrl.trim() === '') {
+                              alert('Ses dosyası henüz hazır değil. Lütfen sayfayı yenileyin ve tekrar deneyin.');
+                              return;
+                            }
+                            
+                            const audio = new Audio(audioUrl);
+                            audio.onerror = (e) => {
+                              console.error('Audio playback error:', e);
+                              alert('Ses çalarken hata oluştu. Lütfen tekrar deneyin.');
+                            };
+                            audio.play().catch((e) => {
+                              console.error('Audio play error:', e);
+                              alert('Ses çalarken hata oluştu. Lütfen tekrar deneyin.');
+                            });
+                          }}
+                            style={{ 
+                              padding: '15px 30px', 
+                              fontSize: '16px',
+                              background: '#8B5CF6',
+                              color: 'white',
+                              border: 'none',
+                              borderRadius: '25px',
+                              cursor: 'pointer'
                             }}
-                            style={{ marginBottom: '15px' }}
                           >
                             🔊 Soruyu Dinle
                           </button>
-                        )}
+                        </div>
                         
                         {/* Cevap textarea */}
+                        <div style={{ marginBottom: '10px' }}>
+                          <p style={{ fontSize: '14px', color: '#666', margin: '0 0 8px 0' }}>
+                            💡 <strong>Konuşamıyorsanız buraya yazabilirsiniz</strong>
+                          </p>
+                        </div>
                         <textarea
                           value={speakingAnswers.part3[currentSpeakingQuestion] || ''}
                           onChange={(e) => {
@@ -2365,26 +2855,11 @@ const GeneralTestPage: React.FC = () => {
                   </div>
                   
                   {/* Speaking Test Tamamlandı Mesajı */}
-                  {speakingEvaluation && (
+                  {speakingEvaluation && !moduleCompletion.speaking && (
                     <div style={{ textAlign: 'center', marginTop: '20px' }}>
-                      <div style={{ 
-                        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', 
-                        color: 'white', 
-                        padding: '20px', 
-                        borderRadius: '12px',
-                        marginBottom: '20px'
-                      }}>
-                        <h3 style={{ margin: '0 0 10px 0', fontSize: '24px' }}>
-                          🎉 Speaking Testi Tamamlandı!
-                        </h3>
-                        <p style={{ margin: 0, fontSize: '16px', opacity: 0.9 }}>
-                          Tüm modüller tamamlandı. Şimdi genel deneme sınavını değerlendirebilirsiniz.
-                        </p>
-                      </div>
-                      
                       <button 
                         className="btn btn-primary" 
-                        onClick={() => setShowTestEvaluation(true)}
+                        onClick={() => setModuleCompletion(prev => ({ ...prev, speaking: true }))}
                         style={{
                           background: '#8B5CF6',
                           color: 'white',
@@ -2396,8 +2871,25 @@ const GeneralTestPage: React.FC = () => {
                           cursor: 'pointer'
                         }}
                       >
-                        📊 Deneme Sınavını Değerlendir
+                        ✅ Testi Tamamla
                       </button>
+                    </div>
+                  )}
+                  
+                  {moduleCompletion.speaking && (
+                    <div style={{ textAlign: 'center', marginTop: '20px' }}>
+                      <div style={{
+                        background: 'linear-gradient(135deg, #4CAF50 0%, #45a049 100%)',
+                        color: 'white',
+                        padding: '15px',
+                        borderRadius: '10px',
+                        marginBottom: '15px'
+                      }}>
+                        <h4 style={{ margin: '0 0 5px 0', fontSize: '18px' }}>✅ Speaking Modülü Tamamlandı</h4>
+                        <p style={{ margin: 0, fontSize: '14px', opacity: 0.9 }}>
+                          Test başarıyla tamamlandı
+                        </p>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -2443,15 +2935,59 @@ const GeneralTestPage: React.FC = () => {
             Sonraki Modül →
           </button>
         </div>
+        
+        {/* Tüm Modüller Tamamlandığında Sınavı Tamamla Butonu */}
+        {Object.values(moduleCompletion).every(completed => completed) && (
+          <div style={{ textAlign: 'center', marginTop: '30px' }}>
+            <div style={{
+              background: 'linear-gradient(135deg, #8B5CF6 0%, #7C3AED 100%)',
+              color: 'white',
+              padding: '25px',
+              borderRadius: '15px',
+              marginBottom: '20px',
+              boxShadow: '0 10px 30px rgba(139, 92, 246, 0.3)'
+            }}>
+              <h3 style={{ margin: '0 0 10px 0', fontSize: '24px' }}>
+                🎉 Tüm Modüller Tamamlandı!
+              </h3>
+              <p style={{ margin: 0, fontSize: '16px', opacity: 0.9 }}>
+                IELTS deneme sınavınızı başarıyla tamamladınız. Şimdi genel sonuçlarınızı görüntüleyebilirsiniz.
+              </p>
+      </div>
+            
+            <button 
+              className="btn btn-primary" 
+              onClick={() => setShowTestEvaluation(true)}
+              style={{
+                background: '#10b981',
+                color: 'white',
+                padding: '18px 40px',
+                fontSize: '20px',
+                fontWeight: 'bold',
+                borderRadius: '30px',
+                border: 'none',
+                cursor: 'pointer',
+                boxShadow: '0 8px 25px rgba(16, 185, 129, 0.3)',
+                transition: 'all 0.3s ease'
+              }}
+            >
+              📊 Sınavı Tamamla ve Sonuçları Görüntüle
+            </button>
+          </div>
+        )}
       </div>
       
       {/* Test Evaluation Modal */}
       {showTestEvaluation && (
         <TestEvaluation
           readingResult={readingResult}
+          readingTest={readingTest}
+          readingAnswers={readingAnswers}
           writingResults={writingResults}
           speakingEvaluation={speakingEvaluation}
-          listeningResult={null}
+          listeningResult={listeningResult}
+          listeningTest={listeningContent}
+          listeningAnswers={answers}
           onBack={() => setShowTestEvaluation(false)}
         />
       )}
