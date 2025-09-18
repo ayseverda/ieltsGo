@@ -1,7 +1,12 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { BookOpen, PenTool, Headphones, Mic, Trophy, BarChart3 } from 'lucide-react';
 import { auth } from '../services/auth';
 import './LoginPage.css';
+
+// Logo imports
+import headerLogo from '../assets/ieltsgoyazi.png';
+import kitapLogo from '../assets/ieltsgokitap.png';
 
 const LoginPage: React.FC = () => {
   const [email, setEmail] = useState('');
@@ -29,11 +34,58 @@ const LoginPage: React.FC = () => {
 
   return (
     <div className="login-container">
-      <div className="login-card">
-        <div className="login-header">
-          <h1>🎯 IELTS Go</h1>
-          <p>Hesabınıza giriş yapın</p>
+      {/* Header */}
+      <header className="homepage-header">
+        <div className="header-content">
+          <Link to="/" className="logo-section">
+            <img 
+              src={kitapLogo} 
+              alt="IELTSGO Kitap" 
+              className="kitap-logo"
+            />
+            <img 
+              src={headerLogo} 
+              alt="IELTSGO Yazı" 
+              className="header-logo"
+            />
+          </Link>
+
+          {/* Navigation Menu */}
+          <nav className="navbar">
+            <Link to="/reading" className="nav-item">
+              <BookOpen size={20} />
+              <span>Reading</span>
+            </Link>
+            <Link to="/writing" className="nav-item">
+              <PenTool size={20} />
+              <span>Writing</span>
+            </Link>
+            <Link to="/listening" className="nav-item">
+              <Headphones size={20} />
+              <span>Listening</span>
+            </Link>
+            <Link to="/speaking" className="nav-item">
+              <Mic size={20} />
+              <span>Speaking</span>
+            </Link>
+            <Link to="/general-test" className="nav-item featured">
+              <Trophy size={20} />
+              <span>Genel Test</span>
+            </Link>
+            <Link to="/dashboard" className="nav-item">
+              <BarChart3 size={20} />
+              <span>Dashboard</span>
+            </Link>
+          </nav>
         </div>
+      </header>
+
+      <div className="login-content">
+        <div className="login-card">
+          <div className="login-header">
+            <h1>🎯 IELTS Go</h1>
+            <p>Hesabınıza giriş yapın</p>
+          </div>
 
         <form onSubmit={handleSubmit} className="login-form">
           <div className="form-group">
@@ -72,13 +124,14 @@ const LoginPage: React.FC = () => {
           </button>
         </form>
 
-        <div className="login-footer">
-          <p>
-            Hesabınız yok mu?{' '}
-            <Link to="/register" className="link">
-              Kayıt olun
-            </Link>
-          </p>
+          <div className="login-footer">
+            <p>
+              Hesabınız yok mu?{' '}
+              <Link to="/register" className="link">
+                Kayıt olun
+              </Link>
+            </p>
+          </div>
         </div>
       </div>
     </div>

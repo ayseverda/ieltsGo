@@ -1,56 +1,590 @@
 .App {
   min-height: 100vh;
+  background: var(--bg);
+}
+
+/* Homepage Styles */
+.homepage-container {
+  min-height: 100vh;
+  background: var(--bg);
+}
+
+.homepage-header {
+  background: var(--card-bg);
+  border-bottom: 1px solid var(--border-light);
+  padding: 0.5rem 0;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  backdrop-filter: blur(10px);
+}
+
+.header-content {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 2rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  position: relative;
+}
+
+.logo-section {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  text-decoration: none;
+  cursor: pointer;
+  transition: transform 0.2s ease;
+}
+
+.logo-section:hover {
+  transform: scale(1.05);
+}
+
+/* Kitap logo */
+.kitap-logo {
+  height: 80px;
+  width: auto;
+  object-fit: contain;
+  object-position: center;
+}
+
+/* Header logo - küçük yatay */
+.header-logo {
+  height: 80px;
+  width: auto;
+  object-fit: contain;
+  object-position: center;
+}
+
+/* Navigation */
+.navbar {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  position: absolute;
+  right: 2rem;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  text-decoration: none;
+  color: var(--text);
+  font-weight: 500;
+  font-size: 0.9rem;
+  transition: all 0.3s ease;
+  background: transparent;
+}
+
+.nav-item:hover {
+  background: rgba(30, 58, 138, 0.1);
+  color: var(--accent);
+  transform: translateY(-1px);
+}
+
+.nav-item.featured {
+  background: var(--accent-red);
+  color: white;
+}
+
+.nav-item.featured:hover {
+  background: #b91c1c;
+  color: white;
+}
+
+.nav-item span {
+  white-space: nowrap;
+}
+
+/* Module pages styling */
+.reading-module,
+.writing-module,
+.listening-module,
+.speaking-module {
+  min-height: 100vh;
+  background: var(--bg);
+}
+
+.module-content {
+  max-width: 95vw;
+  margin: 0 auto;
+  padding: 1.5rem;
+  width: 100%;
+}
+
+.module-header {
+  text-align: center;
+  margin-bottom: 2rem;
+  background: var(--card-bg);
+  padding: 2rem;
+  border-radius: 16px;
+  box-shadow: var(--card-shadow);
+}
+
+.module-header h1 {
+  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-red) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  font-size: 2.5rem;
+  font-weight: 700;
+  margin-bottom: 1rem;
+}
+
+.generate-btn {
+  background: var(--accent);
+  color: white;
+  border: none;
+  padding: 1rem 2rem;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.generate-btn:hover:not(:disabled) {
+  background: #1e40af;
+  transform: translateY(-2px);
+}
+
+.generate-btn:disabled {
+  background: #ccc;
+  cursor: not-allowed;
+}
+
+/* Navigation back button */
+.nav-back-btn {
+  background: var(--accent);
+  color: white;
+  padding: 1rem 2rem;
+  border-radius: 8px;
+  text-decoration: none;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  border: none;
+}
+
+.nav-back-btn:hover {
+  background: #1e40af;
+  transform: translateY(-2px);
+  color: white;
+  text-decoration: none;
+}
+
+/* Module buttons - logo color scheme */
+.module-btn {
+  background: var(--accent);
+  color: white;
+  border: none;
+  padding: 1rem 2rem;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  text-decoration: none;
+  display: inline-block;
+}
+
+.module-btn:hover {
+  background: #1e40af;
+  transform: translateY(-2px);
+  color: white;
+  text-decoration: none;
+}
+
+.module-btn.featured-btn {
+  background: var(--accent-red);
+}
+
+.module-btn.featured-btn:hover {
+  background: #b91c1c;
+}
+
+/* Ana logo - geniş yatay */
+.main-logo-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.main-logo-image {
+  max-width: 400px; /* 600px'den 400px'e küçülttük */
+  width: 100%;
+  height: auto;
+  object-fit: contain;
+  object-position: center;
+  border-radius: 12px;
+}
+
+.logo-text {
+  display: flex;
+  flex-direction: column;
+}
+
+.brand-title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--accent);
+  margin: 0;
+  line-height: 1;
+}
+
+.brand-subtitle {
+  font-size: 0.875rem;
+  color: var(--muted-text);
+  margin: 0;
+  line-height: 1;
+}
+
+.user-section {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.welcome-text {
+  color: var(--text);
+  font-weight: 500;
+}
+
+.logout-btn {
+  background: var(--accent-red);
+  color: white;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.logout-btn:hover {
+  background: #b91c1c;
+  transform: translateY(-1px);
+}
+
+/* Dashboard kartındaki çıkış butonu */
+.logout-btn-card {
+  margin-top: 1rem;
+  padding: 0.5rem 1rem;
+  background: #dc2626;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  width: 100%;
+}
+
+.logout-btn-card:hover {
+  background: #b91c1c;
+  transform: translateY(-1px);
+}
+
+.hero-section {
+  padding: 2rem 2rem; /* 4rem'den 2rem'e azalttık */
+  text-align: center;
   background: linear-gradient(135deg, var(--app-gradient-start) 0%, var(--app-gradient-end) 100%);
+}
+
+.hero-content {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.hero-layout {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 3rem;
+  margin-bottom: 2rem;
+}
+
+.hero-text {
+  flex: 1;
+  text-align: left;
+}
+
+.hero-title {
+  font-size: 2.5rem;
+  font-weight: 700;
+  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-red) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  margin-bottom: 1rem;
+  line-height: 1.2;
+  margin-top: 0;
+}
+
+.hero-subtitle {
+  font-size: 1.125rem;
+  color: var(--accent);
+  font-weight: 500;
+  margin-bottom: 2rem;
+  line-height: 1.6;
+}
+
+.modules-section {
+  padding: 4rem 2rem;
+}
+
+.modules-grid {
+  max-width: 1200px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+  gap: 2rem;
+}
+
+.module-card {
+  background: var(--card-bg);
+  border-radius: 16px;
+  padding: 2rem;
+  border: 1px solid var(--border-light);
+  box-shadow: var(--card-shadow);
+  transition: all 0.3s ease;
+  display: flex;
+  flex-direction: column;
+  text-align: center;
+}
+
+.module-card:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--card-shadow-hover);
+}
+
+.module-card.featured {
+  border: 2px solid var(--accent);
+  background: linear-gradient(135deg, #f8faff 0%, #f0f4ff 100%);
+}
+
+.module-icon {
+  width: 64px;
+  height: 64px;
+  background: linear-gradient(135deg, var(--accent) 0%, #3b82f6 100%);
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 1.5rem;
+  color: white;
+}
+
+.module-card.featured .module-icon {
+  background: linear-gradient(135deg, var(--accent-red) 0%, #ef4444 100%);
+}
+
+.module-title {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--accent);
+  margin-bottom: 1rem;
+}
+
+.module-description {
+  color: var(--muted-text);
+  line-height: 1.6;
+  margin-bottom: 2rem;
+  flex-grow: 1;
+}
+
+.module-btn {
+  background: var(--accent);
+  color: white;
+  border: none;
+  padding: 0.75rem 1.5rem;
+  border-radius: 12px;
+  font-weight: 600;
+  text-decoration: none;
+  display: inline-block;
+  transition: all 0.3s ease;
+  margin-top: auto;
+}
+
+.module-btn:hover {
+  background: #1e40af;
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(30, 58, 138, 0.3);
+}
+
+.featured-btn {
+  background: var(--accent-red);
+}
+
+.featured-btn:hover {
+  background: #b91c1c;
+  box-shadow: 0 8px 25px rgba(220, 38, 38, 0.3);
+}
+
+/* Card icon styles */
+.card-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 64px;
+  height: 64px;
+  background: linear-gradient(135deg, var(--accent) 0%, #1e40af 100%);
+  border-radius: 16px;
+  margin: 0 auto 1rem auto;
+  color: white;
+}
+
+/* Module description */
+.module-description {
+  color: var(--muted-text);
+  font-size: 1.1rem;
+  line-height: 1.6;
+  margin-top: 0.5rem;
+  text-align: center;
+}
+
+/* Module pages styling */
+.writing-module,
+.listening-module,
+.speaking-module,
+.general-test-page {
+  min-height: 100vh;
+  background: var(--bg);
+}
+
+.module-content {
+  max-width: 95vw;
+  margin: 0 auto;
+  padding: 1.5rem;
+  width: 100%;
+}
+
+/* Auth notice styling */
+.auth-notice {
+  background: rgba(30, 58, 138, 0.1);
+  border: 1px solid rgba(30, 58, 138, 0.2);
+  border-radius: 8px;
+  padding: 1rem;
+  margin: 1rem 0;
+  text-align: center;
+}
+
+.auth-notice p {
+  color: var(--accent);
+  margin-bottom: 1rem;
+}
+
+.features-section {
+  padding: 4rem 2rem;
+  background: var(--card-bg);
+}
+
+.features-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  text-align: center;
+}
+
+.features-title {
+  font-size: 2rem;
+  font-weight: 700;
+  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-red) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  margin-bottom: 3rem;
+}
+
+.features-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 2rem;
+}
+
+.feature-card {
+  padding: 2rem;
+  border-radius: 12px;
+  border: 1px solid var(--border-light);
+  transition: all 0.3s ease;
+}
+
+.feature-card:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--card-shadow);
+}
+
+.feature-icon {
+  font-size: 2.5rem;
+  margin-bottom: 1rem;
+}
+
+.feature-card h3 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--accent);
+  margin-bottom: 1rem;
+}
+
+.feature-card p {
+  color: var(--muted-text);
+  line-height: 1.6;
 }
 
 /* Auth buttons */
 .auth-buttons {
   display: flex;
-  gap: 15px;
+  gap: 1rem;
   justify-content: center;
-  margin-top: 20px;
-}
-
-.welcome-only {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  color: white;
-  font-weight: 600;
-  font-size: 1.1rem;
-  margin-top: 20px;
+  margin-top: 2rem;
 }
 
 .auth-btn {
-  padding: 12px 24px;
-  border-radius: 10px;
+  padding: 0.75rem 2rem;
+  border-radius: 12px;
   text-decoration: none;
   font-weight: 600;
   font-size: 1rem;
   transition: all 0.3s ease;
   border: 2px solid transparent;
+  display: inline-block;
 }
 
 .login-btn {
   background: transparent;
-  color: white;
-  border-color: white;
+  color: var(--accent);
+  border-color: var(--accent);
 }
 
 .login-btn:hover {
-  background: white;
-  color: #667eea;
+  background: var(--accent);
+  color: white;
+  transform: translateY(-2px);
 }
 
 .register-btn {
-  background: white;
-  color: #667eea;
+  background: var(--accent);
+  color: white;
+  border-color: var(--accent);
 }
 
 .register-btn:hover {
   background: transparent;
-  color: white;
-  border-color: white;
+  color: var(--accent);
+  border-color: var(--accent);
+  transform: translateY(-2px);
 }
 
 .dashboard-btn {
@@ -153,19 +687,100 @@
 
 /* Mobile responsive */
 @media (max-width: 768px) {
-  .auth-buttons {
+  .header-content {
+    padding: 0 1rem;
     flex-direction: column;
-    gap: 10px;
-    align-items: center;
+    gap: 1rem;
   }
 
-  .welcome-text {
-    margin-right: 0;
-    margin-bottom: 10px;
+  .logo-section {
+    justify-content: center;
+  }
+
+  .navbar {
+    position: static;
+    transform: none;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.5rem;
+    margin: 0;
+    right: auto;
+  }
+
+  .nav-item {
+    padding: 0.4rem 0.8rem;
+    font-size: 0.8rem;
+  }
+
+  .nav-item span {
+    display: none; /* Mobile'de sadece ikon göster */
+  }
+
+  .main-logo-image {
+    max-width: 300px; /* Mobile'de daha küçük */
+    height: auto;
+  }
+
+  .header-logo,
+  .kitap-logo {
+    height: 60px;
+  }
+
+  .user-section {
+    flex-direction: column;
+    gap: 0.5rem;
+    width: 100%;
+  }
+
+  .hero-title {
+    font-size: 2rem;
+  }
+
+  .hero-subtitle {
+    font-size: 1rem;
+  }
+
+  .auth-buttons {
+    flex-direction: column;
+    gap: 1rem;
+    align-items: center;
   }
 
   .auth-btn {
     width: 200px;
+  }
+
+  .modules-grid {
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+  }
+
+  .module-card {
+    padding: 1.5rem;
+  }
+
+  .features-grid {
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+  }
+
+  .hero-section {
+    padding: 1.5rem 1rem; /* 3rem'den 1.5rem'e azalttık */
+  }
+
+  .hero-layout {
+    flex-direction: column;
+    gap: 2rem;
+    text-align: center;
+  }
+
+  .hero-text {
+    text-align: center;
+  }
+
+  .modules-section,
+  .features-section {
+    padding: 3rem 1rem;
   }
 }
 
@@ -212,7 +827,7 @@
 }
 
 .btn-secondary {
-  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+  background: linear-gradient(135deg, #df0d0d 0%, #1114e6 100%);
 }
 
 .btn-success {
@@ -912,10 +1527,70 @@ label {
   }
 }
 
-/* IELTS Listening Module Styles */
-.listening-module {
-  padding: 20px 0;
+/* IELTS Speaking Module Styles */
+.speaking-header {
+  background: linear-gradient(135deg, #f8f9ff 0%, #e8f2ff 100%);
+  padding: 30px;
+  border-radius: 15px;
+  margin-bottom: 20px;
+  border: 2px solid #374151;
 }
+
+.speaking-header h3 {
+  color: #374151;
+  margin-bottom: 15px;
+  font-size: 1.5rem;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.speaking-header p {
+  color: #4A5568;
+  margin-bottom: 20px;
+  line-height: 1.6;
+}
+
+.speaking-overview {
+  background: white;
+  padding: 20px;
+  border-radius: 10px;
+  margin: 20px 0;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+}
+
+.speaking-overview h4 {
+  color: #2D3748;
+  margin-bottom: 15px;
+  font-size: 1.2rem;
+}
+
+.part-preview {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 15px;
+}
+
+.part-item {
+  background: #F7FAFC;
+  padding: 15px;
+  border-radius: 8px;
+  border-left: 4px solid #374151;
+  font-size: 0.95rem;
+}
+
+.part-item strong {
+  color: #374151;
+}
+
+.speaking-controls {
+  display: flex;
+  gap: 15px;
+  margin-top: 25px;
+  flex-wrap: wrap;
+}
+
+/* IELTS Listening Module Styles */
 
 /* Fixed exam header */
 .exam-header-fixed {
@@ -936,11 +1611,11 @@ label {
   padding: 30px;
   border-radius: 15px;
   margin-bottom: 20px;
-  border: 2px solid #8B5CF6;
+  border: 2px solid #1e3a8a;
 }
 
 .ielts-instructions h3 {
-  color: #8B5CF6;
+  color: #1e3a8a;
   margin-bottom: 15px;
   font-size: 1.5rem;
   display: flex;
@@ -978,12 +1653,12 @@ label {
   background: #F7FAFC;
   padding: 15px;
   border-radius: 8px;
-  border-left: 4px solid #8B5CF6;
+  border-left: 4px solid #1e3a8a;
   font-size: 0.95rem;
 }
 
 .section-item strong {
-  color: #8B5CF6;
+  color: #1e3a8a;
 }
 
 .section-controls {
@@ -1078,7 +1753,7 @@ label {
 
 .answer-input:focus {
   outline: none;
-  border-color: #8B5CF6;
+  border-color: #274ae8;
   box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.1);
 }
 
@@ -1101,7 +1776,7 @@ label {
 }
 
 .current-section {
-  background: #8B5CF6;
+  background: #274ae8;
   color: white;
   padding: 5px 15px;
   border-radius: 20px;
@@ -1132,17 +1807,17 @@ label {
 
 .option-label:hover {
   background: #EDF2F7;
-  border-color: #8B5CF6;
+  border-color: #274ae8;
 }
 
 .option-label input[type="radio"] {
   margin: 0;
-  accent-color: #8B5CF6;
+  accent-color: #274ae8;
 }
 
 .option-label input[type="radio"]:checked + span {
   font-weight: 600;
-  color: #8B5CF6;
+  color: #274ae8;
 }
 
 /* Genel Deneme Sonuçları Stilleri */
@@ -1172,15 +1847,15 @@ label {
 }
 
 .score-item:hover {
-  border-color: #667eea;
+  border-color: #274ae8;
   transform: translateY(-3px);
   box-shadow: 0 5px 15px rgba(102, 126, 234, 0.2);
 }
 
 .score-item.overall {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #274ae8 0%, #374151 100%);
   color: white;
-  border-color: #667eea;
+  border-color: #274ae8;
   transform: scale(1.05);
 }
 
@@ -1217,7 +1892,7 @@ label {
   padding: 25px;
   border-radius: 15px;
   margin-bottom: 25px;
-  border-left: 5px solid #667eea;
+  border-left: 5px solid #2b4cde;
   box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
 }
 
@@ -1262,7 +1937,7 @@ label {
 }
 
 .evaluation-card:hover {
-  border-color: #667eea;
+  border-color: #2648e0;
   transform: translateY(-3px);
   box-shadow: 0 5px 15px rgba(102, 126, 234, 0.2);
 }

@@ -1,10 +1,14 @@
 .login-container {
   min-height: 100vh;
+  background: var(--bg);
+}
+
+.login-content {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  padding: 20px;
+  padding: 2rem;
+  min-height: calc(100vh - 80px);
 }
 
 .login-card {
@@ -18,9 +22,13 @@
 }
 
 .login-header h1 {
-  color: #333;
+  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-red) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
   margin-bottom: 10px;
   font-size: 2.5rem;
+  font-weight: 700;
 }
 
 .login-header p {
@@ -56,13 +64,13 @@
 
 .form-group input:focus {
   outline: none;
-  border-color: #667eea;
+  border-color: #1e3a8a;
 }
 
 .login-button {
   width: 100%;
   padding: 14px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #1e3a8a 0%, #374151 100%);
   color: white;
   border: none;
   border-radius: 10px;
@@ -88,7 +96,7 @@
 }
 
 .link {
-  color: #667eea;
+  color: #1e3a8a;
   text-decoration: none;
   font-weight: 600;
 }

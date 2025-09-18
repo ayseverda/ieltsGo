@@ -1,7 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, PenTool } from 'lucide-react';
+import { BookOpen, PenTool, Headphones, Mic, Trophy, BarChart3 } from 'lucide-react';
 import axios from 'axios';
+
+// Logo imports
+import headerLogo from '../assets/ieltsgoyazi.png';
+import kitapLogo from '../assets/ieltsgokitap.png';
 
 const WritingModule: React.FC = () => {
   const [essay, setEssay] = useState('');
@@ -202,18 +206,61 @@ const WritingModule: React.FC = () => {
   }
 
   return (
-    <div className="container">
-      <div className="card">
-        <div className="mb-4">
-          <Link to="/" className="btn mb-2">
-            <ArrowLeft style={{ marginRight: '8px' }} />
-            Ana Sayfaya Dön
+    <div className="writing-module">
+      {/* Header */}
+      <header className="homepage-header">
+        <div className="header-content">
+          <Link to="/" className="logo-section">
+            <img 
+              src={kitapLogo} 
+              alt="IELTSGO Kitap" 
+              className="kitap-logo"
+            />
+            <img 
+              src={headerLogo} 
+              alt="IELTSGO Yazı" 
+              className="header-logo"
+            />
           </Link>
-          <h1 className="module-header" style={{ justifyContent: 'center' }}>
-            <PenTool />
-            <span>Writing Modülü</span>
-          </h1>
+
+          {/* Navigation Menu */}
+          <nav className="navbar">
+            <Link to="/reading" className="nav-item">
+              <BookOpen size={20} />
+              <span>Reading</span>
+            </Link>
+            <Link to="/writing" className="nav-item active">
+              <PenTool size={20} />
+              <span>Writing</span>
+            </Link>
+            <Link to="/listening" className="nav-item">
+              <Headphones size={20} />
+              <span>Listening</span>
+            </Link>
+            <Link to="/speaking" className="nav-item">
+              <Mic size={20} />
+              <span>Speaking</span>
+            </Link>
+            <Link to="/general-test" className="nav-item featured">
+              <Trophy size={20} />
+              <span>Genel Test</span>
+            </Link>
+            <Link to="/dashboard" className="nav-item">
+              <BarChart3 size={20} />
+              <span>Dashboard</span>
+            </Link>
+          </nav>
         </div>
+      </header>
+
+      <div className="module-content">
+        <div className="card" style={{ width: '100%', maxWidth: 'none' }}>
+          <div className="mb-4">
+            <h1 className="module-header" style={{ justifyContent: 'center' }}>
+              <PenTool />
+              <span>Writing Modülü</span>
+            </h1>
+          </div>
 
         {!mode || !task ? (
           <div className="card">
@@ -224,9 +271,9 @@ const WritingModule: React.FC = () => {
                 onClick={() => { setMode('academic'); setTask(''); setLetterType(''); setResult(null); }}
                 style={{
                   cursor: 'pointer', padding: '12px 18px', borderRadius: 12, minWidth: 180, textAlign: 'center',
-                  background: mode === 'academic' ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' : 'var(--card-bg)',
+                  background: mode === 'academic' ? 'linear-gradient(135deg, #1e3a8a 0%, #374151 100%)' : 'var(--card-bg)',
                   color: mode === 'academic' ? '#fff' : 'inherit',
-                  border: '2px solid', borderColor: mode === 'academic' ? '#764ba2' : '#e9ecef',
+                  border: '2px solid', borderColor: mode === 'academic' ? '#1e3a8a' : '#e9ecef',
                   boxShadow: 'var(--card-shadow)'
                 }}
               >
@@ -236,9 +283,9 @@ const WritingModule: React.FC = () => {
                 onClick={() => { setMode('general'); setTask(''); setLetterType(''); setResult(null); }}
                 style={{
                   cursor: 'pointer', padding: '12px 18px', borderRadius: 12, minWidth: 180, textAlign: 'center',
-                  background: mode === 'general' ? 'linear-gradient(135deg, #4ecdc4 0%, #44a08d 100%)' : 'var(--card-bg)',
+                  background: mode === 'general' ? 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)' : 'var(--card-bg)',
                   color: mode === 'general' ? '#fff' : 'inherit',
-                  border: '2px solid', borderColor: mode === 'general' ? '#44a08d' : '#e9ecef',
+                  border: '2px solid', borderColor: mode === 'general' ? '#dc2626' : '#e9ecef',
                   boxShadow: 'var(--card-shadow)'
                 }}
               >
@@ -254,9 +301,9 @@ const WritingModule: React.FC = () => {
                     onClick={() => { setTask('task1'); setResult(null); }}
                     style={{
                       cursor: 'pointer', padding: '10px 16px', borderRadius: 10, minWidth: 140, textAlign: 'center',
-                      background: task === 'task1' ? 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)' : 'var(--card-bg)',
+                      background: task === 'task1' ? 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)' : 'var(--card-bg)',
                       color: task === 'task1' ? '#fff' : 'inherit',
-                      border: '2px solid', borderColor: task === 'task1' ? '#f5576c' : '#e9ecef'
+                      border: '2px solid', borderColor: task === 'task1' ? '#dc2626' : '#e9ecef'
                     }}
                   >
                     Task 1
@@ -265,9 +312,9 @@ const WritingModule: React.FC = () => {
                     onClick={() => { setTask('task2'); setResult(null); }}
                     style={{
                       cursor: 'pointer', padding: '10px 16px', borderRadius: 10, minWidth: 140, textAlign: 'center',
-                      background: task === 'task2' ? 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)' : 'var(--card-bg)',
+                      background: task === 'task2' ? 'linear-gradient(135deg, #1e3a8a 0%, #374151 100%)' : 'var(--card-bg)',
                       color: task === 'task2' ? '#fff' : 'inherit',
-                      border: '2px solid', borderColor: task === 'task2' ? '#00f2fe' : '#e9ecef'
+                      border: '2px solid', borderColor: task === 'task2' ? '#1e3a8a' : '#e9ecef'
                     }}
                   >
                     Task 2
@@ -375,7 +422,7 @@ const WritingModule: React.FC = () => {
                     {visual.labels.map((label: string, i: number) => (
                       <li key={i} style={{ display: 'flex', alignItems: 'center', marginBottom: 6 }}>
                         <span style={{ width: 80 }}>{label}</span>
-                        <div style={{ background: '#667eea', height: 12, width: `${visual.values[i] * 5}px`, borderRadius: 4 }} />
+                        <div style={{ background: '#1e3a8a', height: 12, width: `${visual.values[i] * 5}px`, borderRadius: 4 }} />
                         <span style={{ marginLeft: 8 }}>{visual.values[i]}</span>
                       </li>
                     ))}
@@ -385,7 +432,7 @@ const WritingModule: React.FC = () => {
               {visual?.type === 'pie' && (
                 <>
                   <p style={{ marginTop: 0, fontWeight: 600, fontSize: '1rem' }}>Sample Pie Breakdown</p>
-                  <ul style={{ paddingLeft: 18, fontFamily: 'inherit', fontSize: '0.95rem', color: '#ADD8E6' }}>
+                  <ul style={{ paddingLeft: 18, fontFamily: 'inherit', fontSize: '0.95rem', color: '#374151' }}>
                     {visual.labels.map((label: string, i: number) => (
                       <li key={i}>{label}: {visual.values[i]}%</li>
                     ))}
@@ -496,6 +543,7 @@ const WritingModule: React.FC = () => {
             </div>
           </div>
         )}
+        </div>
       </div>
     </div>
   );

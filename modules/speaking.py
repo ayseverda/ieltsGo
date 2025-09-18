@@ -859,21 +859,27 @@ async def interactive_speaking(request: InteractiveSpeakingRequest):
             Return only the next question.
             """
         
-        # AI'dan sonraki soruyu al
-        model = genai.GenerativeModel('gemini-1.5-flash')
-        response = model.generate_content(prompt)
-        next_question = response.text.strip()
-        
-        # Soruyu ses olarak oluştur
-        audio_url = await generate_audio_for_text(next_question)
-        
-        return {
-            "next_question": next_question,
-            "audio_url": audio_url,
-            "should_continue": True,
-            "part": request.current_part,
-            "question_number": request.question_number + 1
-        }
+        try:
+            # AI'dan sonraki soruyu al
+            model = genai.GenerativeModel('gemini-1.5-flash')
+            response = model.generate_content(prompt)
+            next_question = response.text.strip()
+            
+            # Soruyu ses olarak oluştur
+            audio_url = await generate_audio_for_text(next_question)
+            
+            return {
+                "next_question": next_question,
+                "audio_url": audio_url,
+                "should_continue": True,
+                "part": request.current_part,
+                "question_number": request.question_number + 1
+            }
+        except Exception as e:
+            print(f"❌ Part 3 soru üretme hatası: {str(e)}")
+            return {
+                "error": f"Part 3 soru üretme hatası: {str(e)}"
+            }
         
     except Exception as e:
         print(f"Interactive speaking error: {str(e)}")
@@ -891,6 +897,7 @@ async def evaluate_general_test(request: dict):
         
         # Geçici olarak Gemini API kullanmadan basit değerlendirme
         print("Using fallback evaluation (no Gemini API)")
+        
         return {
             "detailed_evaluation": f"IELTS Genel Deneme Sonucunuz: {overall_score:.1f}/9. Reading: {results.get('reading', 0)}, Speaking: {results.get('speaking', 0)}. Diğer modüller henüz tamamlanmadı.",
             "module_evaluations": {
@@ -917,84 +924,6 @@ async def evaluate_general_test(request: dict):
                 "Listening ve Writing modüllerini de tamamlayın."
             ]
         }
-        
-        try:
-            model = genai.GenerativeModel('gemini-1.5-flash')
-            response = model.generate_content(evaluation_prompt)
-            
-            if hasattr(response, 'text') and response.text:
-                # JSON parse et
-                import json
-                import re
-                
-                text = response.text.strip()
-                cleaned = re.sub(r"^```(json)?", "", text, flags=re.IGNORECASE)
-                cleaned = re.sub(r"```$", "", cleaned)
-                cleaned = cleaned.strip()
-                
-                try:
-                    evaluation_data = json.loads(cleaned)
-                    return evaluation_data
-                except Exception:
-                    # JSON parse hatası durumunda fallback
-                    return {
-                        "detailed_evaluation": f"IELTS Genel Deneme Sonucunuz: {overall_score:.1f}/9. Reading: {results.get('reading', 0)}, Speaking: {results.get('speaking', 0)}. Diğer modüller henüz tamamlanmadı.",
-                        "module_evaluations": {
-                            "reading": {
-                                "score": results.get('reading', 0),
-                                "feedback": f"Reading modülünde {results.get('reading', 0)}/9 puan aldınız."
-                            },
-                            "listening": {
-                                "score": results.get('listening', 0),
-                                "feedback": "Listening modülü henüz test edilmedi."
-                            },
-                            "writing": {
-                                "score": results.get('writing', 0),
-                                "feedback": "Writing modülü henüz test edilmedi."
-                            },
-                            "speaking": {
-                                "score": results.get('speaking', 0),
-                                "feedback": f"Speaking modülünde {results.get('speaking', 0)}/9 puan aldınız."
-                            }
-                        },
-                        "recommendations": [
-                            "Reading modülünde daha fazla pratik yapın.",
-                            "Speaking modülünde akıcılık çalışın.",
-                            "Listening ve Writing modüllerini de tamamlayın."
-                        ]
-                    }
-            else:
-                raise Exception("AI returned empty response")
-                
-        except Exception as e:
-            print(f"AI evaluation error: {str(e)}")
-            # AI hatası durumunda fallback
-            return {
-                "detailed_evaluation": f"IELTS Genel Deneme Sonucunuz: {overall_score:.1f}/9. Reading: {results.get('reading', 0)}, Speaking: {results.get('speaking', 0)}. Diğer modüller henüz tamamlanmadı.",
-                "module_evaluations": {
-                    "reading": {
-                        "score": results.get('reading', 0),
-                        "feedback": f"Reading modülünde {results.get('reading', 0)}/9 puan aldınız."
-                    },
-                    "listening": {
-                        "score": results.get('listening', 0),
-                        "feedback": "Listening modülü henüz test edilmedi."
-                    },
-                    "writing": {
-                        "score": results.get('writing', 0),
-                        "feedback": "Writing modülü henüz test edilmedi."
-                    },
-                    "speaking": {
-                        "score": results.get('speaking', 0),
-                        "feedback": f"Speaking modülünde {results.get('speaking', 0)}/9 puan aldınız."
-                    }
-                },
-                "recommendations": [
-                    "Reading modülünde daha fazla pratik yapın.",
-                    "Speaking modülünde akıcılık çalışın.",
-                    "Listening ve Writing modüllerini de tamamlayın."
-                ]
-            }
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"General test evaluation error: {str(e)}")

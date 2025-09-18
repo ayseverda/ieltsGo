@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, Trophy, Clock, CheckCircle, Play, Pause, RotateCcw, Mic, Square, BookOpen, PenTool, Headphones, BarChart3 } from 'lucide-react';
+import { BookOpen, PenTool, Headphones, Mic, Trophy, BarChart3, Clock, CheckCircle, Play, Pause, RotateCcw, Square } from 'lucide-react';
+import { auth } from './services/auth';
 import TestEvaluation from './components/TestEvaluation';
 
 // Logo imports
@@ -13,6 +14,34 @@ const GeneralTestPage: React.FC = () => {
   const [testCompleted, setTestCompleted] = useState(false);
   const [timeLeft, setTimeLeft] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
+  
+  // Auth states
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [user, setUser] = useState<any>(null);
+  
+  // Auth check
+  useEffect(() => {
+    const checkAuth = () => {
+      const user = auth.getCurrentUser();
+      if (user) {
+        setIsAuthenticated(true);
+        setUser(user);
+      } else {
+        setIsAuthenticated(false);
+        setUser(null);
+        // General test için auth zorunlu değil, sadece uyarı göster
+      }
+    };
+
+    checkAuth();
+  }, []);
+
+  const handleLogout = () => {
+    auth.logout();
+    setIsAuthenticated(false);
+    setUser(null);
+    window.location.href = '/';
+  };
   
   // Listening modülü için ek state'ler
   const [listeningTestStarted, setListeningTestStarted] = useState(false);
@@ -1238,7 +1267,7 @@ const GeneralTestPage: React.FC = () => {
                 alt="IELTSGO Yazı" 
                 className="header-logo"
               />
-          </Link>
+            </Link>
 
             {/* Navigation Menu */}
             <nav className="navbar">
@@ -1258,7 +1287,7 @@ const GeneralTestPage: React.FC = () => {
                 <Mic size={20} />
                 <span>Speaking</span>
               </Link>
-              <Link to="/general-test" className="nav-item featured">
+              <Link to="/general-test" className="nav-item featured active">
                 <Trophy size={20} />
                 <span>Genel Test</span>
               </Link>
@@ -1267,272 +1296,83 @@ const GeneralTestPage: React.FC = () => {
                 <span>Dashboard</span>
               </Link>
             </nav>
+            
+            {isAuthenticated && (
+              <div className="user-section">
+                <span className="welcome-text">Hoş geldin, {user?.name || 'Kullanıcı'}!</span>
+                <button className="logout-btn" onClick={handleLogout}>Çıkış Yap</button>
+              </div>
+            )}
           </div>
         </header>
 
-        <div className="module-content">
-          <div className="card" style={{ width: '100%', maxWidth: 'none' }}>
-            {/* Hero Section */}
-            <div className="text-center mb-6" style={{ 
-              background: 'linear-gradient(135deg, #1e3a8a 0%, #374151 100%)',
-              padding: '3rem 2rem',
-              borderRadius: '20px',
-              marginBottom: '2rem',
-              color: 'white'
-            }}>
-              <div className="mb-4">
-                <Trophy size={60} style={{ marginBottom: '1rem' }} />
-              </div>
-              <h1 style={{ 
-                fontSize: '2.5rem', 
-                fontWeight: 'bold', 
-                marginBottom: '1rem',
-                textShadow: '2px 2px 4px rgba(0,0,0,0.3)'
-              }}>
+      <div className="container">
+        <div className="text-center mb-4">
+          <h1 className="title">
+            <Trophy className="icon" />
             Genel IELTS Denemesi
           </h1>
-              <p style={{ 
-                fontSize: '1.2rem', 
-                opacity: 0.9,
-                maxWidth: '600px',
-                margin: '0 auto',
-                lineHeight: '1.6'
-              }}>
+          <p className="subtitle">
             Tüm modülleri içeren AI destekli genel IELTS denemesi yapın ve puanınızı öğrenin.
           </p>
+            {!isAuthenticated && (
+              <div className="auth-notice">
+                <p>💡 Giriş yaparsanız sonuçlarınız kaydedilir ve dashboard'ta görüntülenir.</p>
+                <Link to="/login" className="module-btn">Giriş Yap</Link>
+              </div>
+            )}
         </div>
 
-            {/* Test Info Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-              <div className="info-card" style={{
-                background: '#1e3a8a',
-                padding: '2rem',
-                borderRadius: '15px',
-                color: 'white',
-                textAlign: 'center',
-                boxShadow: '0 10px 25px rgba(0,0,0,0.1)',
-                border: '2px solid #1e3a8a'
-              }}>
-                <Clock size={40} style={{ marginBottom: '1rem' }} />
-                <h3 style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>Toplam Süre</h3>
-                <p style={{ fontSize: '1.1rem', opacity: 0.9 }}>{totalDuration} dakika</p>
+        <div className="card">
+          <h2>Deneme Sınavı Bilgileri</h2>
+          <div className="test-info">
+            <div className="info-item">
+              <Clock className="icon" />
+              <span><strong>Toplam Süre:</strong> 2 saat 45 dakika</span>
             </div>
-
-              <div className="info-card" style={{
-                background: '#dc2626',
-                padding: '2rem',
-                borderRadius: '15px',
-                color: 'white',
-                textAlign: 'center',
-                boxShadow: '0 10px 25px rgba(0,0,0,0.1)',
-                border: '2px solid #dc2626'
-              }}>
-                <CheckCircle size={40} style={{ marginBottom: '1rem' }} />
-                <h3 style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>4 Modül</h3>
-                <p style={{ fontSize: '1.1rem', opacity: 0.9 }}>Reading, Writing, Listening, Speaking</p>
-              </div>
-
-              <div className="info-card" style={{
-                background: '#374151',
-                padding: '2rem',
-                borderRadius: '15px',
-                color: 'white',
-                textAlign: 'center',
-                boxShadow: '0 10px 25px rgba(0,0,0,0.1)',
-                border: '2px solid #374151'
-              }}>
-                <Trophy size={40} style={{ marginBottom: '1rem' }} />
-                <h3 style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>AI Değerlendirme</h3>
-                <p style={{ fontSize: '1.1rem', opacity: 0.9 }}>Detaylı IELTS Band Skoru</p>
+            <div className="info-item">
+              <CheckCircle className="icon" />
+              <span><strong>Modüller:</strong> Reading, Writing, Listening, Speaking</span>
             </div>
           </div>
 
-            {/* Module Details */}
-            <div className="steps-grid" style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(4, 1fr)',
-              gap: '1rem',
-              marginBottom: '2rem'
-            }}>
-              {steps.map((step, index) => {
-                const colors = [
-                  '#1e3a8a', // Listening - Lacivert
-                  '#dc2626', // Reading - Kırmızı  
-                  '#ffffff', // Writing - Beyaz
-                  '#374151'  // Speaking - Koyu Gri
-                ];
-                
-                const textColor = colors[index] === '#ffffff' ? '#374151' : 'white';
-                const borderColor = colors[index] === '#ffffff' ? '#e5e7eb' : colors[index];
-                
-                return (
-                  <div key={index} className="step-card" style={{
-                    background: colors[index],
-                    border: `2px solid ${borderColor}`,
-                    borderRadius: '15px',
-                    padding: '1.5rem',
-                    textAlign: 'center',
-                    transition: 'all 0.3s ease',
-                    boxShadow: '0 8px 25px rgba(0,0,0,0.15)',
-                    color: textColor,
-                    transform: 'translateY(0)',
-                    cursor: 'pointer'
-                  }}
-                  onMouseOver={(e) => {
-                    e.currentTarget.style.transform = 'translateY(-5px)';
-                    e.currentTarget.style.boxShadow = '0 15px 35px rgba(0,0,0,0.2)';
-                  }}
-                  onMouseOut={(e) => {
-                    e.currentTarget.style.transform = 'translateY(0)';
-                    e.currentTarget.style.boxShadow = '0 8px 25px rgba(0,0,0,0.15)';
-                  }}>
-                    <h3 style={{ 
-                      fontSize: '1.4rem', 
-                      marginBottom: '1rem',
-                      fontWeight: 'bold',
-                      textShadow: '1px 1px 2px rgba(0,0,0,0.3)'
-                    }}>
-                      {step.name}
-                    </h3>
-                    <div style={{ marginBottom: '0.8rem', fontSize: '1rem' }}>
-                      <strong>⏱️ Süre:</strong> {step.duration} dakika
+          <div className="steps-grid">
+            {steps.map((step, index) => (
+              <div key={index} className="step-card">
+                <h3>{step.name}</h3>
+                <p><strong>Süre:</strong> {step.duration} dakika</p>
+                <p><strong>Soru/Task:</strong> {step.questions || step.tasks || step.parts}</p>
+                <p className="step-description">{step.description}</p>
               </div>
-                    <div style={{ marginBottom: '0.8rem', fontSize: '1rem' }}>
-                      <strong>📝 Soru/Task:</strong> {step.questions || step.tasks || step.parts}
-                    </div>
-                    <p className="step-description" style={{ 
-                      fontSize: '0.9rem',
-                      marginTop: '0.8rem',
-                      opacity: 0.9,
-                      lineHeight: '1.4'
-                    }}>
-                      {step.description}
-                    </p>
-                  </div>
-                );
-              })}
+            ))}
           </div>
 
-            {/* Instructions */}
-            <div className="instructions-section" style={{
-              background: '#f8f9fa',
-              padding: '2rem',
-              borderRadius: '15px',
-              marginBottom: '2rem',
-              border: '2px solid #1e3a8a'
-            }}>
-              <h3 style={{ 
-                color: '#1e3a8a', 
-                fontSize: '1.5rem', 
-                marginBottom: '1.5rem',
-                textAlign: 'center'
-              }}>
-                📋 Önemli Bilgiler
-              </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="instruction-item" style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                  <div style={{ 
-                    background: '#1e3a8a', 
-                    color: 'white', 
-                    borderRadius: '50%', 
-                    width: '30px', 
-                    height: '30px', 
-                    display: 'flex', 
-                    alignItems: 'center', 
-                    justifyContent: 'center',
-                    fontSize: '14px',
-                    fontWeight: 'bold'
-                  }}>1</div>
-                  <span>Sınav sırasında sayfayı yenilemeyin veya kapatmayın</span>
+          <div className="exam-summary">
+            <h3>📋 Sınav Özeti</h3>
+            <div className="summary-grid">
+              <div className="summary-item">
+                <Clock className="icon" />
+                <span><strong>Toplam Süre:</strong> {totalDuration} dakika</span>
               </div>
-                <div className="instruction-item" style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                  <div style={{ 
-                    background: '#dc2626', 
-                    color: 'white', 
-                    borderRadius: '50%', 
-                    width: '30px', 
-                    height: '30px', 
-                    display: 'flex', 
-                    alignItems: 'center', 
-                    justifyContent: 'center',
-                    fontSize: '14px',
-                    fontWeight: 'bold'
-                  }}>2</div>
-                  <span>Her modül için ayrı süre verilecektir</span>
+              <div className="summary-item">
+                <CheckCircle className="icon" />
+                <span><strong>Modül Sayısı:</strong> {steps.length}</span>
               </div>
-                <div className="instruction-item" style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                  <div style={{ 
-                    background: '#374151', 
-                    color: 'white', 
-                    borderRadius: '50%', 
-                    width: '30px', 
-                    height: '30px', 
-                    display: 'flex', 
-                    alignItems: 'center', 
-                    justifyContent: 'center',
-                    fontSize: '14px',
-                    fontWeight: 'bold'
-                  }}>3</div>
-                  <span>Modüller arası geçiş otomatik olacaktır</span>
-                </div>
-                <div className="instruction-item" style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                  <div style={{ 
-                    background: '#1e3a8a', 
-                    color: 'white', 
-                    borderRadius: '50%', 
-                    width: '30px', 
-                    height: '30px', 
-                    display: 'flex', 
-                    alignItems: 'center', 
-                    justifyContent: 'center',
-                    fontSize: '14px',
-                    fontWeight: 'bold'
-                  }}>4</div>
-                  <span>Sınav sonrası detaylı değerlendirme alacaksınız</span>
+              <div className="summary-item">
+                <Trophy className="icon" />
+                <span><strong>Sınav Türü:</strong> Akademik IELTS</span>
               </div>
             </div>
           </div>
 
-            {/* Start Button */}
           <div className="text-center">
-              <Link to="/" className="module-btn mb-4" style={{ textDecoration: 'none', display: 'inline-block' }}>
-                <ArrowLeft style={{ marginRight: '8px' }} />
-                Ana Sayfaya Dön
-              </Link>
-              <div style={{ marginTop: '2rem' }}>
             <button 
-                  className="module-btn featured-btn"
+              className="btn btn-primary"
               onClick={startTest}
-                  style={{
-                    fontSize: '1.3rem',
-                    padding: '1rem 3rem',
-                    background: 'linear-gradient(135deg, #1e3a8a 0%, #374151 100%)',
-                    border: 'none',
-                    borderRadius: '50px',
-                    color: 'white',
-                    fontWeight: 'bold',
-                    cursor: 'pointer',
-                    transition: 'all 0.3s ease',
-                    boxShadow: '0 8px 25px rgba(30, 58, 138, 0.3)',
-                    textDecoration: 'none',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '0.5rem'
-                  }}
-                  onMouseOver={(e) => {
-                    e.currentTarget.style.transform = 'translateY(-2px)';
-                    e.currentTarget.style.boxShadow = '0 12px 30px rgba(30, 58, 138, 0.4)';
-                  }}
-                  onMouseOut={(e) => {
-                    e.currentTarget.style.transform = 'translateY(0)';
-                    e.currentTarget.style.boxShadow = '0 8px 25px rgba(30, 58, 138, 0.3)';
-                  }}
-                >
-                  <Play size={24} />
-                  Deneme Sınavını Başlat
+              style={{ background: "#FFD700", color: "#222", fontSize: "1.2rem", padding: "15px 30px" }}
+            >
+              Denemeyi Başlat
             </button>
-              </div>
-            </div>
           </div>
         </div>
       </div>
@@ -1542,6 +1382,60 @@ const GeneralTestPage: React.FC = () => {
 
   if (testCompleted) {
     return (
+      <div className="general-test-page">
+        {/* Header */}
+        <header className="homepage-header">
+          <div className="header-content">
+            <Link to="/" className="logo-section">
+              <img 
+                src={kitapLogo} 
+                alt="IELTSGO Kitap" 
+                className="kitap-logo"
+              />
+              <img 
+                src={headerLogo} 
+                alt="IELTSGO Yazı" 
+                className="header-logo"
+              />
+            </Link>
+
+            {/* Navigation Menu */}
+            <nav className="navbar">
+              <Link to="/reading" className="nav-item">
+                <BookOpen size={20} />
+                <span>Reading</span>
+              </Link>
+              <Link to="/writing" className="nav-item">
+                <PenTool size={20} />
+                <span>Writing</span>
+              </Link>
+              <Link to="/listening" className="nav-item">
+                <Headphones size={20} />
+                <span>Listening</span>
+              </Link>
+              <Link to="/speaking" className="nav-item">
+                <Mic size={20} />
+                <span>Speaking</span>
+              </Link>
+              <Link to="/general-test" className="nav-item featured active">
+                <Trophy size={20} />
+                <span>Genel Test</span>
+              </Link>
+              <Link to="/dashboard" className="nav-item">
+                <BarChart3 size={20} />
+                <span>Dashboard</span>
+              </Link>
+            </nav>
+            
+            {isAuthenticated && (
+              <div className="user-section">
+                <span className="welcome-text">Hoş geldin, {user?.name || 'Kullanıcı'}!</span>
+                <button className="logout-btn" onClick={handleLogout}>Çıkış Yap</button>
+              </div>
+            )}
+          </div>
+        </header>
+
       <div className="container">
         <div className="text-center mb-4">
           <h1 className="title">
@@ -1585,16 +1479,7 @@ const GeneralTestPage: React.FC = () => {
                 className="btn btn-primary" 
                 onClick={evaluateGeneralTest}
                 disabled={isEvaluatingGeneralTest}
-                style={{ 
-                  marginRight: '10px',
-                  background: '#1e3a8a',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '8px',
-                  padding: '12px 24px',
-                  fontSize: '16px',
-                  fontWeight: 'bold'
-                }}
+                style={{ marginRight: '10px' }}
               >
                 {isEvaluatingGeneralTest ? (
                   <>🔄 Değerlendiriliyor...</>
@@ -1684,12 +1569,65 @@ const GeneralTestPage: React.FC = () => {
               </>
             )}
         </div>
-        )}
       </div>
     );
   }
 
   return (
+    <div className="general-test-page">
+      {/* Header */}
+      <header className="homepage-header">
+        <div className="header-content">
+          <Link to="/" className="logo-section">
+            <img 
+              src={kitapLogo} 
+              alt="IELTSGO Kitap" 
+              className="kitap-logo"
+            />
+            <img 
+              src={headerLogo} 
+              alt="IELTSGO Yazı" 
+              className="header-logo"
+            />
+          </Link>
+
+          {/* Navigation Menu */}
+          <nav className="navbar">
+            <Link to="/reading" className="nav-item">
+              <BookOpen size={20} />
+              <span>Reading</span>
+            </Link>
+            <Link to="/writing" className="nav-item">
+              <PenTool size={20} />
+              <span>Writing</span>
+            </Link>
+            <Link to="/listening" className="nav-item">
+              <Headphones size={20} />
+              <span>Listening</span>
+            </Link>
+            <Link to="/speaking" className="nav-item">
+              <Mic size={20} />
+              <span>Speaking</span>
+            </Link>
+            <Link to="/general-test" className="nav-item featured active">
+              <Trophy size={20} />
+              <span>Genel Test</span>
+            </Link>
+            <Link to="/dashboard" className="nav-item">
+              <BarChart3 size={20} />
+              <span>Dashboard</span>
+            </Link>
+          </nav>
+          
+          {isAuthenticated && (
+            <div className="user-section">
+              <span className="welcome-text">Hoş geldin, {user?.name || 'Kullanıcı'}!</span>
+              <button className="logout-btn" onClick={handleLogout}>Çıkış Yap</button>
+            </div>
+          )}
+        </div>
+      </header>
+
     <div className="container">
       {/* Sınav Header */}
       <div className="exam-header">
@@ -1787,7 +1725,7 @@ const GeneralTestPage: React.FC = () => {
                 <div className="section-controls">
                   <button 
                     className="btn btn-primary" 
-                    style={{ background: "#1e3a8a", color: "white" }}
+                    style={{ background: "#8B5CF6", color: "white" }}
                     onClick={startListeningTest}
                   >
                     <Play className="icon" />
@@ -1900,7 +1838,7 @@ const GeneralTestPage: React.FC = () => {
                         }
                       }}
                       style={{
-                        background: '#1e3a8a', 
+                        background: '#8B5CF6', 
                         color: 'white', 
                         padding: '15px 30px', 
                         fontSize: '18px',
@@ -1969,7 +1907,7 @@ const GeneralTestPage: React.FC = () => {
                 <div className="section-controls">
                   {!readingTest && !readingLoading ? (
                     <div style={{textAlign: 'center', padding: '20px'}}>
-                      <div style={{fontSize: '18px', color: '#dc2626', marginBottom: '15px'}}>
+                      <div style={{fontSize: '18px', color: '#8B5CF6', marginBottom: '15px'}}>
                         📖 Reading Testine Hazır mısınız?
                       </div>
                       <div style={{fontSize: '14px', color: '#666', marginBottom: '20px'}}>
@@ -1977,7 +1915,7 @@ const GeneralTestPage: React.FC = () => {
                       </div>
                       <button 
                         className="btn btn-primary" 
-                        style={{ background: "#dc2626", color: "white", fontSize: "16px", padding: "12px 24px" }}
+                        style={{ background: "#8B5CF6", color: "white", fontSize: "16px", padding: "12px 24px" }}
                         onClick={startReadingTest}
                       >
                         🚀 Reading Testini Başlat
@@ -1985,7 +1923,7 @@ const GeneralTestPage: React.FC = () => {
                     </div>
                   ) : readingLoading ? (
                     <div style={{textAlign: 'center', padding: '20px'}}>
-                      <div style={{fontSize: '18px', color: '#dc2626', marginBottom: '10px'}}>
+                      <div style={{fontSize: '18px', color: '#8B5CF6', marginBottom: '10px'}}>
                         🔄 IELTS Academic Reading Testi Oluşturuluyor...
                       </div>
                       <div style={{fontSize: '14px', color: '#666'}}>
@@ -2023,10 +1961,10 @@ const GeneralTestPage: React.FC = () => {
                         onClick={() => setCurrentReadingPassage(index)}
                         style={{
                           padding: '8px 16px',
-                          border: '2px solid #dc2626',
+                          border: '2px solid #8B5CF6',
                           borderRadius: '20px',
-                          background: currentReadingPassage === index ? '#dc2626' : 'transparent',
-                          color: currentReadingPassage === index ? 'white' : '#dc2626',
+                          background: currentReadingPassage === index ? '#8B5CF6' : 'transparent',
+                          color: currentReadingPassage === index ? 'white' : '#8B5CF6',
                           cursor: 'pointer',
                           fontSize: '14px',
                           fontWeight: 'bold'
@@ -2041,9 +1979,9 @@ const GeneralTestPage: React.FC = () => {
                   {readingTest?.passages && readingTest.passages[currentReadingPassage] && (
                     <div className="current-passage-content">
                       {/* Metin */}
-                      <div className="passage-section" style={{marginBottom: '30px', border: '2px solid #dc2626', padding: '25px', borderRadius: '12px', background: '#f8f9fa'}}>
+                      <div className="passage-section" style={{marginBottom: '30px', border: '2px solid #8B5CF6', padding: '25px', borderRadius: '12px', background: '#f8f9fa'}}>
                         <div className="passage-header" style={{marginBottom: '20px', textAlign: 'center'}}>
-                          <h4 style={{color: '#dc2626', fontSize: '20px', margin: '0 0 10px 0'}}>
+                          <h4 style={{color: '#8B5CF6', fontSize: '20px', margin: '0 0 10px 0'}}>
                             Metin {currentReadingPassage + 1}: {readingTest?.passages?.[currentReadingPassage]?.title || 'Metin'}
                           </h4>
                           <span className="passage-info" style={{color: '#666', fontSize: '14px'}}>
@@ -2065,7 +2003,7 @@ const GeneralTestPage: React.FC = () => {
 
                       {/* Bu Metne Ait Sorular */}
                       <div className="questions-container">
-                        <h4 style={{color: '#dc2626', fontSize: '18px', marginBottom: '20px'}}>
+                        <h4 style={{color: '#8B5CF6', fontSize: '18px', marginBottom: '20px'}}>
                           📝 Metin {currentReadingPassage + 1} Soruları
                         </h4>
                         <div className="questions-grid">
@@ -2093,7 +2031,7 @@ const GeneralTestPage: React.FC = () => {
                                   <div className="question-header" style={{marginBottom: '15px'}}>
                                     <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px'}}>
                                       <span className="question-number" style={{
-                                        background: showResult ? (isCorrect ? '#28a745' : '#dc3545') : '#dc2626', 
+                                        background: showResult ? (isCorrect ? '#28a745' : '#dc3545') : '#8B5CF6', 
                                         color: 'white', 
                                         padding: '4px 12px', 
                                         borderRadius: '15px', 
@@ -2219,11 +2157,11 @@ const GeneralTestPage: React.FC = () => {
                                           display: 'flex',
                                           alignItems: 'center',
                                           padding: '8px 16px',
-                                          border: '2px solid #dc2626',
+                                          border: '2px solid #8B5CF6',
                                           borderRadius: '20px',
                                           cursor: 'pointer',
-                                          background: readingAnswers[question.id] === 'True' ? '#dc2626' : 'transparent',
-                                          color: readingAnswers[question.id] === 'True' ? 'white' : '#dc2626'
+                                          background: readingAnswers[question.id] === 'True' ? '#8B5CF6' : 'transparent',
+                                          color: readingAnswers[question.id] === 'True' ? 'white' : '#8B5CF6'
                                         }}>
                                           <input
                                             type="radio"
@@ -2239,11 +2177,11 @@ const GeneralTestPage: React.FC = () => {
                                           display: 'flex',
                                           alignItems: 'center',
                                           padding: '8px 16px',
-                                          border: '2px solid #dc2626',
+                                          border: '2px solid #8B5CF6',
                                           borderRadius: '20px',
                                           cursor: 'pointer',
-                                          background: readingAnswers[question.id] === 'False' ? '#dc2626' : 'transparent',
-                                          color: readingAnswers[question.id] === 'False' ? 'white' : '#dc2626'
+                                          background: readingAnswers[question.id] === 'False' ? '#8B5CF6' : 'transparent',
+                                          color: readingAnswers[question.id] === 'False' ? 'white' : '#8B5CF6'
                                         }}>
                                           <input
                                             type="radio"
@@ -2259,11 +2197,11 @@ const GeneralTestPage: React.FC = () => {
                                           display: 'flex',
                                           alignItems: 'center',
                                           padding: '8px 16px',
-                                          border: '2px solid #dc2626',
+                                          border: '2px solid #8B5CF6',
                                           borderRadius: '20px',
                                           cursor: 'pointer',
-                                          background: readingAnswers[question.id] === 'Not Given' ? '#dc2626' : 'transparent',
-                                          color: readingAnswers[question.id] === 'Not Given' ? 'white' : '#dc2626'
+                                          background: readingAnswers[question.id] === 'Not Given' ? '#8B5CF6' : 'transparent',
+                                          color: readingAnswers[question.id] === 'Not Given' ? 'white' : '#8B5CF6'
                                         }}>
                                           <input
                                             type="radio"
@@ -2292,7 +2230,7 @@ const GeneralTestPage: React.FC = () => {
                                           outline: 'none',
                                           transition: 'border-color 0.3s'
                                         }}
-                                        onFocus={(e) => e.target.style.borderColor = '#dc2626'}
+                                        onFocus={(e) => e.target.style.borderColor = '#8B5CF6'}
                                         onBlur={(e) => e.target.style.borderColor = '#e0e0e0'}
                           />
                         )}
@@ -2342,7 +2280,7 @@ const GeneralTestPage: React.FC = () => {
                           onClick={() => setCurrentReadingPassage(Math.min((readingTest?.passages?.length || 1) - 1, currentReadingPassage + 1))}
                           disabled={currentReadingPassage === (readingTest?.passages?.length || 1) - 1}
                           style={{
-                            background: '#dc2626',
+                            background: '#8B5CF6',
                             color: 'white',
                             padding: '12px 24px',
                             fontSize: '16px',
@@ -2366,7 +2304,7 @@ const GeneralTestPage: React.FC = () => {
                       padding: '20px',
                       background: '#f8f9fa',
                       borderRadius: '10px',
-                      border: '2px solid #dc2626'
+                      border: '2px solid #8B5CF6'
                     }}>
                       <button 
                         className="btn btn-primary" 
@@ -2379,7 +2317,7 @@ const GeneralTestPage: React.FC = () => {
                         }}
                         disabled={readingLoading}
                         style={{
-                          background: '#dc2626', 
+                          background: '#8B5CF6', 
                           color: 'white', 
                           padding: '15px 30px', 
                           fontSize: '18px',
@@ -2458,7 +2396,7 @@ const GeneralTestPage: React.FC = () => {
 
                   {Object.keys(writingTopics).length === 0 && !writingLoading ? (
                     <div style={{textAlign: 'center', padding: '20px'}}>
-                      <div style={{fontSize: '18px', color: '#ffffff', marginBottom: '15px'}}>
+                      <div style={{fontSize: '18px', color: '#8B5CF6', marginBottom: '15px'}}>
                         ✍️ Writing Testine Hazır mısınız?
                       </div>
                       <div style={{fontSize: '14px', color: '#666', marginBottom: '20px'}}>
@@ -2466,7 +2404,7 @@ const GeneralTestPage: React.FC = () => {
                       </div>
                       <button 
                         className="btn btn-primary" 
-                        style={{ background: "#374151", color: "white", fontSize: "16px", padding: "12px 24px" }}
+                        style={{ background: "#8B5CF6", color: "white", fontSize: "16px", padding: "12px 24px" }}
                         onClick={startWritingTest}
                       >
                         🚀 Writing Testini Başlat
@@ -2474,7 +2412,7 @@ const GeneralTestPage: React.FC = () => {
                     </div>
                   ) : writingLoading ? (
                     <div style={{textAlign: 'center', padding: '20px'}}>
-                      <div style={{fontSize: '18px', color: '#374151', marginBottom: '10px'}}>
+                      <div style={{fontSize: '18px', color: '#8B5CF6', marginBottom: '10px'}}>
                         🔄 IELTS Writing konuları oluşturuluyor...
                       </div>
                       <div style={{fontSize: '14px', color: '#666'}}>
@@ -2509,10 +2447,10 @@ const GeneralTestPage: React.FC = () => {
                       onClick={() => setCurrentWritingTask(0)}
                       style={{
                         padding: '8px 16px',
-                        border: '2px solid #dc2626',
+                        border: '2px solid #8B5CF6',
                         borderRadius: '20px',
-                        background: currentWritingTask === 0 ? '#dc2626' : 'transparent',
-                        color: currentWritingTask === 0 ? 'white' : '#dc2626',
+                        background: currentWritingTask === 0 ? '#8B5CF6' : 'transparent',
+                        color: currentWritingTask === 0 ? 'white' : '#8B5CF6',
                         cursor: 'pointer',
                         fontSize: '14px',
                         fontWeight: 'bold'
@@ -2525,10 +2463,10 @@ const GeneralTestPage: React.FC = () => {
                       onClick={() => setCurrentWritingTask(1)}
                       style={{
                         padding: '8px 16px',
-                        border: '2px solid #dc2626',
+                        border: '2px solid #8B5CF6',
                         borderRadius: '20px',
-                        background: currentWritingTask === 1 ? '#dc2626' : 'transparent',
-                        color: currentWritingTask === 1 ? 'white' : '#dc2626',
+                        background: currentWritingTask === 1 ? '#8B5CF6' : 'transparent',
+                        color: currentWritingTask === 1 ? 'white' : '#8B5CF6',
                         cursor: 'pointer',
                         fontSize: '14px',
                         fontWeight: 'bold'
@@ -2551,13 +2489,13 @@ const GeneralTestPage: React.FC = () => {
                         {/* Task Başlığı ve Konu */}
                         <div className="task-section" style={{
                           marginBottom: '30px', 
-                          border: '2px solid #dc2626', 
+                          border: '2px solid #8B5CF6', 
                           padding: '25px', 
                           borderRadius: '12px', 
                           background: '#f8f9fa'
                         }}>
                           <div className="task-header" style={{marginBottom: '20px', textAlign: 'center'}}>
-                            <h4 style={{color: '#dc2626', fontSize: '20px', margin: '0 0 10px 0'}}>
+                            <h4 style={{color: '#8B5CF6', fontSize: '20px', margin: '0 0 10px 0'}}>
                               {isTask1 ? 'Task 1' : 'Task 2'}: {isTask1 ? 
                                 (writingMode === 'academic' ? 'Grafik/Şema Analizi' : 'Mektup Yazma') : 
                                 'Essay Yazma'
@@ -2580,7 +2518,7 @@ const GeneralTestPage: React.FC = () => {
                               fontSize: '15px',
                               lineHeight: '1.6'
                             }}>
-                              <strong style={{color: '#dc2626'}}>Konu:</strong><br/>
+                              <strong style={{color: '#8B5CF6'}}>Konu:</strong><br/>
                               {topic}
                             </div>
                           )}
@@ -2594,7 +2532,7 @@ const GeneralTestPage: React.FC = () => {
                           borderRadius: '12px',
                           border: '1px solid #e0e0e0'
                         }}>
-                          <h5 style={{color: '#dc2626', marginBottom: '15px'}}>
+                          <h5 style={{color: '#8B5CF6', marginBottom: '15px'}}>
                             ✍️ Essay'inizi Yazın
                           </h5>
                           <textarea
@@ -2616,7 +2554,7 @@ const GeneralTestPage: React.FC = () => {
                               outline: 'none',
                               transition: 'border-color 0.3s'
                             }}
-                            onFocus={(e: React.FocusEvent<HTMLTextAreaElement>) => e.target.style.borderColor = '#dc2626'}
+                            onFocus={(e: React.FocusEvent<HTMLTextAreaElement>) => e.target.style.borderColor = '#8B5CF6'}
                             onBlur={(e: React.FocusEvent<HTMLTextAreaElement>) => e.target.style.borderColor = '#e0e0e0'}
                           />
                           <div style={{
@@ -2641,7 +2579,7 @@ const GeneralTestPage: React.FC = () => {
                             }}
                             disabled={writingLoading || essay.trim().length < 50}
                             style={{
-                              background: '#dc2626',
+                              background: '#8B5CF6',
                               color: 'white',
                               padding: '15px 30px',
                               fontSize: '18px',
@@ -2719,7 +2657,7 @@ const GeneralTestPage: React.FC = () => {
                       onClick={() => setCurrentWritingTask(Math.min(1, currentWritingTask + 1))}
                       disabled={currentWritingTask === 1}
                       style={{
-                        background: '#dc2626',
+                        background: '#8B5CF6',
                         color: 'white',
                         padding: '12px 24px',
                         fontSize: '16px',
@@ -2736,113 +2674,41 @@ const GeneralTestPage: React.FC = () => {
           ) : steps[currentStep].name === 'Speaking' ? (
             <div className="speaking-module">
               {!speakingTestStarted ? (
-                        <div>
-                  {/* Speaking Modülü Başlık ve Açıklama */}
-                  <div className="speaking-header">
-                    <h3>🗣️ IELTS Speaking Test</h3>
-                    <p>Bu bölümde 3 farklı bölümden oluşan konuşma testi yapacaksınız. Her soru ses olarak dinlenebilir ve cevabınız kayıt edilir.</p>
-                  </div>
-                
-                  <div className="speaking-overview">
-                    <h4>Bölümler:</h4>
-                    <div className="part-preview">
-                      <div className="part-item">
-                        <strong>Part 1:</strong> Kişisel sorular (4-5 soru, 4-5 dakika)
-                      </div>
-                      <div className="part-item">
-                        <strong>Part 2:</strong> Konuşma kartı (1 dakika hazırlık, 2 dakika konuşma)
-                      </div>
-                      <div className="part-item">
-                        <strong>Part 3:</strong> Soyut sorular (4-5 soru, 4-5 dakika)
-                      </div>
+                <div className="text-center" style={{ padding: '40px' }}>
+                  <h3>🗣️ IELTS Speaking Test</h3>
+                  <p style={{ marginBottom: '30px', color: '#666' }}>
+                    AI ile oluşturulan 3 bölümlü IELTS Speaking testi. Her soru ses olarak dinlenebilir ve cevabınız kayıt edilir.
+                  </p>
+                  <button 
+                    className="btn btn-primary" 
+                    onClick={startSpeakingTest}
+                    disabled={speakingLoading}
+                    style={{ fontSize: '18px', padding: '15px 30px' }}
+                  >
+                    {speakingLoading ? 'Test Oluşturuluyor...' : '🚀 Speaking Testini Başlat'}
+                  </button>
+                  {speakingError && (
+                    <div className="error-message" style={{ marginTop: '20px', color: '#d33' }}>
+                      ❌ {speakingError}
                     </div>
-                  </div>
-
-                  <div className="speaking-controls">
-                    <div style={{textAlign: 'center', padding: '20px'}}>
-                      <div style={{fontSize: '18px', color: '#374151', marginBottom: '15px'}}>
-                        🗣️ Speaking Testine Hazır mısınız?
-                      </div>
-                      <div style={{fontSize: '14px', color: '#666', marginBottom: '20px'}}>
-                        3 bölümlü IELTS Speaking testi. Her soru ses olarak dinlenebilir ve cevabınız kayıt edilir.
-                      </div>
-                      <button 
-                        className="btn btn-primary" 
-                        style={{ background: "#374151", color: "white", fontSize: "16px", padding: "12px 24px" }}
-                        onClick={startSpeakingTest}
-                        disabled={speakingLoading}
-                      >
-                        {speakingLoading ? '🔄 Test Oluşturuluyor...' : '🚀 Speaking Testini Başlat'}
-                      </button>
-                      {speakingError && (
-                        <div className="error-message" style={{ marginTop: '20px', color: '#d33' }}>
-                          ❌ {speakingError}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              ) : speakingLoading ? (
-                <div style={{textAlign: 'center', padding: '20px'}}>
-                  <div style={{fontSize: '18px', color: '#374151', marginBottom: '10px'}}>
-                    🔄 IELTS Speaking Testi Oluşturuluyor...
-                  </div>
-                  <div style={{fontSize: '14px', color: '#666'}}>
-                    3 bölüm ve sorular hazırlanıyor...
-                  </div>
+                  )}
                 </div>
               ) : (
                         <div>
                   <div className="ielts-instructions">
                     <h3>🗣️ IELTS Speaking Test - Part {speakingPart}</h3>
                     <div className="section-controls" style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: '20px' }}>
-                      <button 
-                        onClick={() => { setSpeakingPart(1); setCurrentSpeakingQuestion(0); }}
-                        style={{
-                          padding: '8px 16px',
-                          border: '2px solid #374151',
-                          borderRadius: '20px',
-                          background: speakingPart === 1 ? '#374151' : 'transparent',
-                          color: speakingPart === 1 ? 'white' : '#374151',
-                          cursor: 'pointer',
-                          fontSize: '14px',
-                          fontWeight: 'bold'
-                        }}
-                      >Part 1</button>
-                      <button 
-                        onClick={() => { setSpeakingPart(2); setCurrentSpeakingQuestion(0); }}
-                        style={{
-                          padding: '8px 16px',
-                          border: '2px solid #374151',
-                          borderRadius: '20px',
-                          background: speakingPart === 2 ? '#374151' : 'transparent',
-                          color: speakingPart === 2 ? 'white' : '#374151',
-                          cursor: 'pointer',
-                          fontSize: '14px',
-                          fontWeight: 'bold'
-                        }}
-                      >Part 2</button>
-                      <button 
-                        onClick={() => { setSpeakingPart(3); setCurrentSpeakingQuestion(0); }}
-                        style={{
-                          padding: '8px 16px',
-                          border: '2px solid #374151',
-                          borderRadius: '20px',
-                          background: speakingPart === 3 ? '#374151' : 'transparent',
-                          color: speakingPart === 3 ? 'white' : '#374151',
-                          cursor: 'pointer',
-                          fontSize: '14px',
-                          fontWeight: 'bold'
-                        }}
-                      >Part 3</button>
+                      <button className={`btn ${speakingPart === 1 ? 'btn-primary' : 'btn-outline'}`} onClick={() => { setSpeakingPart(1); setCurrentSpeakingQuestion(0); }}>Part 1</button>
+                      <button className={`btn ${speakingPart === 2 ? 'btn-primary' : 'btn-outline'}`} onClick={() => { setSpeakingPart(2); setCurrentSpeakingQuestion(0); }}>Part 2</button>
+                      <button className={`btn ${speakingPart === 3 ? 'btn-primary' : 'btn-outline'}`} onClick={() => { setSpeakingPart(3); setCurrentSpeakingQuestion(0); }}>Part 3</button>
                     </div>
                   </div>
 
                   {speakingError && (
                     <div className="error-message" style={{color:'#d33', background:'#ffe6e6', padding:10, borderRadius:6, margin:'10px 0'}}>
                       ❌ {speakingError}
-                    </div>
-                  )}
+                        </div>
+                      )}
 
                   {/* Yeni Speaking UI */}
                   {speakingPart === 1 && (
@@ -2854,7 +2720,7 @@ const GeneralTestPage: React.FC = () => {
                       
                       <div style={{ marginBottom: '20px' }}>
                         <div style={{ marginBottom: '15px', textAlign: 'center' }}>
-                          <h4 style={{ color: '#dc2626', margin: '0 0 10px 0' }}>
+                          <h4 style={{ color: '#8B5CF6', margin: '0 0 10px 0' }}>
                             🎧 Part 1 - Soru {currentSpeakingQuestion + 1}
                           </h4>
                           <p style={{ color: '#666', fontSize: '14px', margin: '0 0 15px 0' }}>
@@ -2886,7 +2752,7 @@ const GeneralTestPage: React.FC = () => {
                             style={{ 
                               padding: '15px 30px', 
                               fontSize: '16px',
-                              background: '#dc2626',
+                              background: '#8B5CF6',
                               color: 'white',
                               border: 'none',
                               borderRadius: '25px',
@@ -2965,7 +2831,7 @@ const GeneralTestPage: React.FC = () => {
                       <h4>Part 2: Long Turn (Cue Card)</h4>
                       
                       <div style={{ marginBottom: '15px', textAlign: 'center' }}>
-                        <h4 style={{ color: '#dc2626', margin: '0 0 10px 0' }}>
+                        <h4 style={{ color: '#8B5CF6', margin: '0 0 10px 0' }}>
                           🎧 Part 2 - Cue Card
                         </h4>
                         <p style={{ color: '#666', fontSize: '14px', margin: '0 0 15px 0' }}>
@@ -2997,7 +2863,7 @@ const GeneralTestPage: React.FC = () => {
                           style={{ 
                             padding: '15px 30px', 
                             fontSize: '16px',
-                            background: '#dc2626',
+                            background: '#8B5CF6',
                             color: 'white',
                             border: 'none',
                             borderRadius: '25px',
@@ -3055,7 +2921,7 @@ const GeneralTestPage: React.FC = () => {
                       
                       <div style={{ marginBottom: '20px' }}>
                         <div style={{ marginBottom: '15px', textAlign: 'center' }}>
-                          <h4 style={{ color: '#dc2626', margin: '0 0 10px 0' }}>
+                          <h4 style={{ color: '#8B5CF6', margin: '0 0 10px 0' }}>
                             🎧 Part 3 - Soru {currentSpeakingQuestion + 1}
                           </h4>
                           <p style={{ color: '#666', fontSize: '14px', margin: '0 0 15px 0' }}>
@@ -3087,7 +2953,7 @@ const GeneralTestPage: React.FC = () => {
                             style={{ 
                               padding: '15px 30px', 
                               fontSize: '16px',
-                              background: '#dc2626',
+                              background: '#8B5CF6',
                               color: 'white',
                               border: 'none',
                               borderRadius: '25px',
@@ -3172,15 +3038,7 @@ const GeneralTestPage: React.FC = () => {
                       className="btn btn-success"
                       onClick={evaluateSpeakingTest}
                       disabled={speakingEvaluating || (!speakingAnswers.part1.some(a => a.trim()) && !speakingAnswers.part2.trim() && !speakingAnswers.part3.some(a => a.trim()))}
-                      style={{ 
-                        fontSize: '16px', 
-                        padding: '12px 24px',
-                        background: '#374151',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: '8px',
-                        fontWeight: 'bold'
-                      }}
+                      style={{ fontSize: '16px', padding: '12px 24px' }}
                     >
                       {speakingEvaluating ? 'Değerlendiriliyor...' : '🎯 Speaking Testini Değerlendir'}
                     </button>
@@ -3199,7 +3057,7 @@ const GeneralTestPage: React.FC = () => {
                         className="btn btn-primary" 
                         onClick={() => setModuleCompletion(prev => ({ ...prev, speaking: true }))}
                         style={{
-                          background: '#374151',
+                          background: '#8B5CF6',
                           color: 'white',
                           padding: '15px 30px',
                           fontSize: '18px',
@@ -3278,7 +3136,7 @@ const GeneralTestPage: React.FC = () => {
         {Object.values(moduleCompletion).every(completed => completed) && (
           <div style={{ textAlign: 'center', marginTop: '30px' }}>
             <div style={{
-              background: 'linear-gradient(135deg, #dc2626 0%, #7C3AED 100%)',
+              background: 'linear-gradient(135deg, #8B5CF6 0%, #7C3AED 100%)',
               color: 'white',
               padding: '25px',
               borderRadius: '15px',

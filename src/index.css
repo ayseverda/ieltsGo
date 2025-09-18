@@ -5,19 +5,24 @@
 }
 
 :root {
-  --bg: #f5f7fb;
-  --text: #1f2937;
-  --muted-text: #4b5563;
+  --bg: #faf8f5;
+  --text: #1a1a1a;
+  --muted-text: #666666;
   --card-bg: #ffffff;
-  --card-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
-  --card-shadow-hover: 0 15px 40px rgba(0, 0, 0, 0.12);
-  --accent: #667eea;
-  --hero-title: #111827;
-  --hero-subtitle: #374151;
+  --card-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  --card-shadow-hover: 0 8px 30px rgba(0, 0, 0, 0.12);
+  --accent: #1e3a8a;
+  --accent-red: #dc2626;
+  --hero-title: #1a1a1a;
+  --hero-subtitle: #666666;
   --btn-text: #ffffff;
-  --app-gradient-start: #667eea;
-  --app-gradient-end: #764ba2;
-  --outline: rgba(0, 123, 255, 0.25);
+  --app-gradient-start: #faf8f5;
+  --app-gradient-end: #f3f0eb;
+  --outline: rgba(30, 58, 138, 0.25);
+  --border-light: #e5e5e5;
+  --success: #16a34a;
+  --warning: #ea580c;
+  --info: #2563eb;
 }
 
 [data-theme="dark"] {

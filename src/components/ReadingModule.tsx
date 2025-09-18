@@ -1,5 +1,11 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
+import { BookOpen, PenTool, Headphones, Mic, Trophy, BarChart3 } from 'lucide-react';
 import { auth } from '../services/auth';
+
+// Logo imports
+import headerLogo from '../assets/ieltsgoyazi.png';
+import kitapLogo from '../assets/ieltsgokitap.png';
 
 interface ReadingModuleProps {
   onScore?: (score: number) => void;
@@ -11,6 +17,30 @@ const ReadingModule: React.FC<ReadingModuleProps> = ({ onScore }) => {
   const [loading, setLoading] = useState<boolean>(false);
   const [result, setResult] = useState<any>(null);
   const [error, setError] = useState<string>('');
+  
+  // Authentication states
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [user, setUser] = useState<any>(null);
+
+  useEffect(() => {
+    const checkAuth = () => {
+      const user = auth.getCurrentUser();
+      if (user) {
+        setIsAuthenticated(true);
+        setUser(user);
+      } else {
+        setIsAuthenticated(false);
+        setUser(null);
+      }
+    };
+    checkAuth();
+  }, []);
+
+  const handleLogout = () => {
+    auth.logout();
+    setIsAuthenticated(false);
+    setUser(null);
+  };
 
   const generateTest = async () => {
     setLoading(true);
@@ -56,6 +86,7 @@ const ReadingModule: React.FC<ReadingModuleProps> = ({ onScore }) => {
       console.log('🔍 Değerlendirme başlıyor...');
       console.log('📋 Test ID:', test.id);
       console.log('📝 Cevaplar:', answers);
+      console.log('🎯 Current result state:', result);
       
       // User ID'yi al
       const user = auth.getCurrentUser();
@@ -64,9 +95,19 @@ const ReadingModule: React.FC<ReadingModuleProps> = ({ onScore }) => {
       console.log('🔐 Current User:', user);
       console.log('🆔 User ID:', userId);
       
+      // Authorization header'ı hazırla
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      const token = localStorage.getItem('token');
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+        console.log('🔐 Authorization header eklendi');
+      } else {
+        console.log('⚠️ Token bulunamadı - Authorization header eklenmedi');
+      }
+
       const res = await fetch('http://localhost:8001/submit', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: headers,
         body: JSON.stringify({ 
           test_id: test.id, 
           answers: answers,
@@ -80,11 +121,25 @@ const ReadingModule: React.FC<ReadingModuleProps> = ({ onScore }) => {
       if (res.ok) {
         const data = await res.json();
         console.log('✅ Değerlendirme başarılı:', data);
-        setResult(data);
+        
+        // Response format'ını düzelt - backend'den direkt gelen format'ı kullan
+        const formattedResult = {
+          band_estimate: data.band_estimate || 0,
+          scaled: {
+            correct: data.scaled?.correct || 0,
+            total: data.scaled?.total || 13
+          },
+          feedback: data.feedback || null,
+          raw: data.raw || null
+        };
+        
+        console.log('🎯 Formatted result:', formattedResult);
+        setResult(formattedResult);
+        console.log('🎯 Result state set edildi:', formattedResult);
         
         // Band score'u parent component'e gönder
-        if (onScore && data.band_estimate) {
-          onScore(data.band_estimate);
+        if (onScore && formattedResult.band_estimate) {
+          onScore(formattedResult.band_estimate);
         }
       } else {
         const errorText = await res.text();
@@ -114,89 +169,80 @@ const ReadingModule: React.FC<ReadingModuleProps> = ({ onScore }) => {
   };
 
   return (
-    <div className="reading-module" style={{ 
-      padding: '20px', 
-      maxWidth: '1000px', 
-      margin: '0 auto',
-      minHeight: '100vh',
-      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-      backgroundAttachment: 'fixed'
-    }}>
-      <div className="module-header" style={{ 
-        textAlign: 'center', 
-        marginBottom: '30px',
-        background: 'rgba(255, 255, 255, 0.95)',
-        padding: '30px',
-        borderRadius: '15px',
-        boxShadow: '0 8px 32px rgba(0, 0, 0, 0.1)',
-        backdropFilter: 'blur(10px)'
-      }}>
-        {/* Navigation Buttons */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-          <button
-            onClick={() => window.history.back()}
-            style={{
-              background: 'rgba(139, 92, 246, 0.1)',
-              color: '#8B5CF6',
-              padding: '10px 20px',
-              fontSize: '14px',
-              fontWeight: '600',
-              borderRadius: '20px',
-              border: '2px solid rgba(139, 92, 246, 0.3)',
-              cursor: 'pointer',
-              transition: 'all 0.3s ease',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px'
-            }}
-            onMouseOver={(e) => {
-              e.currentTarget.style.background = 'rgba(139, 92, 246, 0.2)';
-              e.currentTarget.style.borderColor = 'rgba(139, 92, 246, 0.5)';
-            }}
-            onMouseOut={(e) => {
-              e.currentTarget.style.background = 'rgba(139, 92, 246, 0.1)';
-              e.currentTarget.style.borderColor = 'rgba(139, 92, 246, 0.3)';
-            }}
-          >
-            ← Geri
-          </button>
+    <div className="reading-module">
+      {/* Header */}
+      <header className="homepage-header">
+        <div className="header-content">
+          <Link to="/" className="logo-section">
+            <img 
+              src={kitapLogo} 
+              alt="IELTSGO Kitap" 
+              className="kitap-logo"
+            />
+            <img 
+              src={headerLogo} 
+              alt="IELTSGO Yazı" 
+              className="header-logo"
+            />
+          </Link>
+
+          {/* Navigation Menu */}
+          <nav className="navbar">
+            <Link to="/reading" className="nav-item active">
+              <BookOpen size={20} />
+              <span>Reading</span>
+            </Link>
+            <Link to="/writing" className="nav-item">
+              <PenTool size={20} />
+              <span>Writing</span>
+            </Link>
+            <Link to="/listening" className="nav-item">
+              <Headphones size={20} />
+              <span>Listening</span>
+            </Link>
+            <Link to="/speaking" className="nav-item">
+              <Mic size={20} />
+              <span>Speaking</span>
+            </Link>
+            <Link to="/general-test" className="nav-item featured">
+              <Trophy size={20} />
+              <span>Genel Test</span>
+            </Link>
+            <Link to="/dashboard" className="nav-item">
+              <BarChart3 size={20} />
+              <span>Dashboard</span>
+            </Link>
+          </nav>
           
-          <button
-            onClick={() => window.location.href = '/'}
-            style={{
-              background: 'rgba(34, 197, 94, 0.1)',
-              color: '#22c55e',
-              padding: '10px 20px',
-              fontSize: '14px',
-              fontWeight: '600',
-              borderRadius: '20px',
-              border: '2px solid rgba(34, 197, 94, 0.3)',
-              cursor: 'pointer',
-              transition: 'all 0.3s ease',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px'
-            }}
-            onMouseOver={(e) => {
-              e.currentTarget.style.background = 'rgba(34, 197, 94, 0.2)';
-              e.currentTarget.style.borderColor = 'rgba(34, 197, 94, 0.5)';
-            }}
-            onMouseOut={(e) => {
-              e.currentTarget.style.background = 'rgba(34, 197, 94, 0.1)';
-              e.currentTarget.style.borderColor = 'rgba(34, 197, 94, 0.3)';
-            }}
-          >
-            🏠 Anasayfa
-          </button>
         </div>
-        
-        <h2 style={{ color: '#8B5CF6', fontSize: '28px', marginBottom: '10px' }}>
-          📖 Reading Pratik
-        </h2>
-        <p style={{ color: '#666', fontSize: '16px' }}>
-          IELTS Reading pratik testi - 1 metin, 13 soru
-        </p>
-      </div>
+      </header>
+
+      <div className="module-content">
+        <div className="card" style={{ width: '100%', maxWidth: 'none' }}>
+          <div className="mb-4">
+            <h1 className="module-header">
+              <BookOpen />
+              IELTS Reading Practice Test
+            </h1>
+            <p className="module-description">
+              1 Passage, 13 Questions - Academic Style
+            </p>
+          </div>
+          {/* Navigation Buttons */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+            <Link to="/" className="module-btn" style={{ textDecoration: 'none' }}>
+              ← Ana Sayfaya Dön
+            </Link>
+          
+            <button
+              onClick={generateTest}
+              disabled={loading}
+              className="module-btn featured-btn"
+              style={{ textDecoration: 'none' }}
+            >
+              {loading ? '⏳ Test Üretiliyor...' : '🔄 Yeni Test Başlat'}
+            </button>
+        </div>
 
       {error && (
         <div style={{
@@ -223,28 +269,11 @@ const ReadingModule: React.FC<ReadingModuleProps> = ({ onScore }) => {
         }}>
           <button
             onClick={generateTest}
-            style={{
-              background: '#8B5CF6',
-              color: 'white',
-              padding: '15px 30px',
-              fontSize: '18px',
-              fontWeight: 'bold',
-              borderRadius: '25px',
-              border: 'none',
-              cursor: 'pointer',
-              boxShadow: '0 4px 15px rgba(139, 92, 246, 0.3)',
-              transition: 'all 0.3s ease'
-            }}
-            onMouseOver={(e) => {
-              e.currentTarget.style.transform = 'translateY(-2px)';
-              e.currentTarget.style.boxShadow = '0 6px 20px rgba(139, 92, 246, 0.4)';
-            }}
-            onMouseOut={(e) => {
-              e.currentTarget.style.transform = 'translateY(0)';
-              e.currentTarget.style.boxShadow = '0 4px 15px rgba(139, 92, 246, 0.3)';
-            }}
+            disabled={loading}
+            className="module-btn featured-btn"
+            style={{ textDecoration: 'none' }}
           >
-            🚀 Pratik Testi Başlat
+            {loading ? '⏳ Test Üretiliyor...' : '🚀 Pratik Testi Başlat'}
           </button>
         </div>
       )}
@@ -259,13 +288,13 @@ const ReadingModule: React.FC<ReadingModuleProps> = ({ onScore }) => {
           boxShadow: '0 8px 32px rgba(0, 0, 0, 0.1)',
           backdropFilter: 'blur(10px)'
         }}>
-          <div style={{ fontSize: '18px', color: '#8B5CF6' }}>
+          <div style={{ fontSize: '18px', color: '#1e3a8a' }}>
             🔄 {test ? 'Değerlendiriliyor...' : 'Test üretiliyor...'}
           </div>
         </div>
       )}
 
-      {test && !result && (
+      {test && (
         <div className="test-content">
           {/* Metin */}
           <div className="passage-section" style={{
@@ -276,7 +305,7 @@ const ReadingModule: React.FC<ReadingModuleProps> = ({ onScore }) => {
             border: '2px solid #e0e0e0',
             boxShadow: '0 2px 10px rgba(0,0,0,0.1)'
           }}>
-            <h3 style={{ color: '#8B5CF6', fontSize: '22px', marginBottom: '15px' }}>
+            <h3 style={{ color: '#1e3a8a', fontSize: '22px', marginBottom: '15px' }}>
               📄 {test.passages[0]?.title}
             </h3>
             <div style={{
@@ -299,7 +328,7 @@ const ReadingModule: React.FC<ReadingModuleProps> = ({ onScore }) => {
 
           {/* Sorular */}
           <div className="questions-section">
-            <h4 style={{ color: '#8B5CF6', fontSize: '20px', marginBottom: '20px' }}>
+            <h4 style={{ color: '#1e3a8a', fontSize: '20px', marginBottom: '20px' }}>
               📝 Sorular (13 soru)
             </h4>
             
@@ -314,7 +343,7 @@ const ReadingModule: React.FC<ReadingModuleProps> = ({ onScore }) => {
               }}>
                 <div style={{ marginBottom: '15px' }}>
                   <span style={{
-                    background: '#8B5CF6',
+                    background: '#1e3a8a',
                     color: 'white',
                     padding: '4px 12px',
                     borderRadius: '15px',
@@ -354,7 +383,7 @@ const ReadingModule: React.FC<ReadingModuleProps> = ({ onScore }) => {
                         padding: '8px',
                         borderRadius: '5px',
                         background: answers[question.id] === optionIndex.toString() ? '#f0f4ff' : 'transparent',
-                        border: answers[question.id] === optionIndex.toString() ? '2px solid #8B5CF6' : '1px solid #e0e0e0'
+                        border: answers[question.id] === optionIndex.toString() ? '2px solid #1e3a8a' : '1px solid #e0e0e0'
                       }}>
                         <input
                           type="radio"
@@ -380,7 +409,7 @@ const ReadingModule: React.FC<ReadingModuleProps> = ({ onScore }) => {
                         padding: '8px',
                         borderRadius: '5px',
                         background: answers[question.id] === option ? '#f0f4ff' : 'transparent',
-                        border: answers[question.id] === option ? '2px solid #8B5CF6' : '1px solid #e0e0e0'
+                        border: answers[question.id] === option ? '2px solid #1e3a8a' : '1px solid #e0e0e0'
                       }}>
                         <input
                           type="radio"
@@ -423,7 +452,7 @@ const ReadingModule: React.FC<ReadingModuleProps> = ({ onScore }) => {
                         }}
                         placeholder="Cevabınızı yazın..."
                         onFocus={(e) => {
-                          e.target.style.borderColor = '#8B5CF6';
+                          e.target.style.borderColor = '#1e3a8a';
                         }}
                         onBlur={(e) => {
                           e.target.style.borderColor = '#e0e0e0';
@@ -434,253 +463,316 @@ const ReadingModule: React.FC<ReadingModuleProps> = ({ onScore }) => {
                   
                   return null;
                 })()}
+
+                {/* Soru Sonucu - Sadece değerlendirme yapıldıktan sonra göster */}
+                {result && (() => {
+                  const questionResult = result.raw?.details?.[question.id];
+                  if (questionResult) {
+                    const isCorrect = questionResult.is_correct;
+                    const correctAnswer = questionResult.correct_answer;
+                    const userAnswer = questionResult.user_answer;
+                    
+                    return (
+                      <div style={{
+                        marginTop: '15px',
+                        padding: '12px',
+                        borderRadius: '8px',
+                        background: isCorrect ? '#d4edda' : '#f8d7da',
+                        border: `1px solid ${isCorrect ? '#c3e6cb' : '#f5c6cb'}`
+                      }}>
+                        <div style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          marginBottom: '8px'
+                        }}>
+                          <span style={{
+                            fontSize: '16px',
+                            marginRight: '8px'
+                          }}>
+                            {isCorrect ? '✅' : '❌'}
+                          </span>
+                          <strong style={{
+                            color: isCorrect ? '#155724' : '#721c24'
+                          }}>
+                            {isCorrect ? 'Doğru' : 'Yanlış'}
+                          </strong>
+                        </div>
+                        
+                        <div style={{ fontSize: '14px', color: '#333' }}>
+                          <div style={{ marginBottom: '4px' }}>
+                            <strong>Senin cevabın:</strong> {(() => {
+                              if (!userAnswer || userAnswer === 'Boş') return 'Boş';
+                              if (question.type === 'Multiple Choice') {
+                                const optionIndex = parseInt(userAnswer);
+                                if (!isNaN(optionIndex) && question.options && question.options[optionIndex]) {
+                                  return question.options[optionIndex];
+                                }
+                              }
+                              return userAnswer;
+                            })()}
+                          </div>
+                          {!isCorrect && (
+                            <div>
+                              <strong>Doğru cevap:</strong> {(() => {
+                                if (question.type === 'Multiple Choice') {
+                                  const correctIndex = parseInt(correctAnswer);
+                                  if (!isNaN(correctIndex) && question.options && question.options[correctIndex]) {
+                                    return question.options[correctIndex];
+                                  }
+                                }
+                                return correctAnswer;
+                              })()}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  }
+                  return null;
+                })()}
               </div>
             ))}
 
-            {/* Submit Button */}
-            <div style={{ textAlign: 'center', marginTop: '30px' }}>
-              <button
-                onClick={submitAnswers}
-                disabled={loading}
-                style={{
-                  background: '#8B5CF6',
-                  color: 'white',
-                  padding: '15px 30px',
-                  fontSize: '18px',
-                  fontWeight: 'bold',
-                  borderRadius: '25px',
-                  border: 'none',
-                  cursor: loading ? 'not-allowed' : 'pointer',
-                  opacity: loading ? 0.7 : 1
-                }}
-              >
-                {loading ? '🔄 Değerlendiriliyor...' : '📊 Testi Tamamla ve Değerlendir'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+            {/* Submit Button - Sadece değerlendirme yapılmamışsa göster */}
+            {!result && (
+              <div style={{ textAlign: 'center', marginTop: '30px' }}>
+                <button
+                  onClick={submitAnswers}
+                  disabled={loading}
+                  className="module-btn"
+                  style={{ textDecoration: 'none' }}
+                >
+                  {loading ? '🔄 Değerlendiriliyor...' : '📊 Testi Tamamla ve Değerlendir'}
+                </button>
+              </div>
+            )}
 
-      {result && (
-        <div className="result-section" style={{
-          background: '#f8f9fa',
-          padding: '25px',
-          borderRadius: '12px',
-          border: '2px solid #8B5CF6',
-          marginTop: '30px'
-        }}>
-          <h4 style={{ color: '#8B5CF6', fontSize: '20px', marginBottom: '20px' }}>
-            📊 Test Sonuçları
-          </h4>
-          
-          {/* Ana İstatistikler */}
-          {(() => {
-            // Boş soruları say
-            const blankCount = test?.questions?.filter((q: any) => {
-              const userAnswer = answers[q.id];
-              return !userAnswer || userAnswer.trim() === '';
-            }).length || 0;
-            
-            const wrongCount = result?.scaled?.total - result?.scaled?.correct - blankCount;
-            
-            return (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '15px', marginBottom: '30px' }}>
-                <div style={{
-                  background: 'white',
-                  padding: '15px',
-                  borderRadius: '8px',
-                  border: '1px solid #e0e0e0',
-                  textAlign: 'center'
-                }}>
-                  <strong style={{ color: '#8B5CF6' }}>Doğru Cevaplar</strong><br/>
-                  <span style={{ fontSize: '24px', fontWeight: 'bold', color: '#28a745' }}>
-                    {result?.scaled?.correct}
-                  </span>
-                  <span style={{ fontSize: '16px', color: '#666' }}> / {result?.scaled?.total}</span>
+            {/* Değerlendirme Sonuçları - Test içeriğinin altında */}
+            {result && (
+              <div className="result-section" style={{
+                background: '#f8f9fa',
+                padding: '25px',
+                borderRadius: '12px',
+                border: '2px solid #1e3a8a',
+                marginTop: '30px'
+              }}>
+                {console.log('🎯 Result render ediliyor:', result)}
+                <h4 style={{ color: '#1e3a8a', fontSize: '20px', marginBottom: '20px' }}>
+                  📊 Test Sonuçları
+                </h4>
+                
+                {/* Yanlış Çözülen Sorular Özeti */}
+                {(() => {
+                  const wrongQuestions = test?.questions?.filter((q: any) => {
+                    const questionResult = result.raw?.details?.[q.id];
+                    return questionResult && !questionResult.is_correct;
+                  }) || [];
+                  
+                  if (wrongQuestions.length > 0) {
+                    return (
+                      <div style={{
+                        background: '#fff3cd',
+                        border: '1px solid #ffeaa7',
+                        borderRadius: '8px',
+                        padding: '15px',
+                        marginBottom: '20px'
+                      }}>
+                        <h5 style={{ color: '#856404', marginBottom: '10px' }}>
+                          ❌ Yanlış Çözülen Sorular ({wrongQuestions.length})
+                        </h5>
+                        <div style={{ fontSize: '14px', color: '#856404' }}>
+                          {wrongQuestions.map((q: any, index: number) => {
+                            const questionResult = result.raw?.details?.[q.id];
+                            const questionNumber = test?.questions?.findIndex((question: any) => question.id === q.id) + 1;
+                            return (
+                              <div key={q.id} style={{ marginBottom: '8px' }}>
+                                <strong>Soru {questionNumber}:</strong> {q.prompt.substring(0, 50)}...
+                                <br />
+                                <span style={{ fontSize: '12px', color: '#666' }}>
+                                  Senin cevabın: {(() => {
+                                    const userAnswer = questionResult?.user_answer || 'Boş';
+                                    if (userAnswer === 'Boş') return 'Boş';
+                                    if (q.type === 'Multiple Choice') {
+                                      const optionIndex = parseInt(userAnswer);
+                                      if (!isNaN(optionIndex) && q.options && q.options[optionIndex]) {
+                                        return q.options[optionIndex];
+                                      }
+                                    }
+                                    return userAnswer;
+                                  })()} | 
+                                  Doğru cevap: {(() => {
+                                    const correctAnswer = questionResult?.correct_answer;
+                                    if (q.type === 'Multiple Choice') {
+                                      const correctIndex = parseInt(correctAnswer);
+                                      if (!isNaN(correctIndex) && q.options && q.options[correctIndex]) {
+                                        return q.options[correctIndex];
+                                      }
+                                    }
+                                    return correctAnswer;
+                                  })()}
+                                </span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                        <div style={{ marginTop: '10px', fontSize: '12px', color: '#856404' }}>
+                          💡 Yukarıdaki sorulara tekrar bakarak doğru cevapları inceleyebilirsiniz.
+                        </div>
+                      </div>
+                    );
+                  }
+                  return null;
+                })()}
+                
+                {/* Ana İstatistikler */}
+                {(() => {
+                  // Boş soruları say
+                  const blankCount = test?.questions?.filter((q: any) => {
+                    const userAnswer = answers[q.id];
+                    return !userAnswer || userAnswer.trim() === '';
+                  }).length || 0;
+                  
+                  const wrongCount = result?.scaled?.total - result?.scaled?.correct - blankCount;
+                  
+                  return (
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '15px', marginBottom: '30px' }}>
+                      <div style={{
+                        background: 'white',
+                        padding: '15px',
+                        borderRadius: '8px',
+                        border: '1px solid #e0e0e0',
+                        textAlign: 'center'
+                      }}>
+                        <strong style={{ color: '#1e3a8a' }}>Doğru Cevaplar</strong><br/>
+                        <span style={{ fontSize: '24px', fontWeight: 'bold', color: '#28a745' }}>
+                          {result?.scaled?.correct}
+                        </span>
+                        <span style={{ fontSize: '16px', color: '#666' }}> / {result?.scaled?.total}</span>
+                      </div>
+                      <div style={{
+                        background: 'white',
+                        padding: '15px',
+                        borderRadius: '8px',
+                        border: '1px solid #e0e0e0',
+                        textAlign: 'center'
+                      }}>
+                        <strong style={{ color: '#1e3a8a' }}>Yanlış Cevaplar</strong><br/>
+                        <span style={{ fontSize: '24px', fontWeight: 'bold', color: '#dc3545' }}>
+                          {wrongCount}
+                        </span>
+                        <span style={{ fontSize: '16px', color: '#666' }}> / {result?.scaled?.total}</span>
+                      </div>
+                      <div style={{
+                        background: 'white',
+                        padding: '15px',
+                        borderRadius: '8px',
+                        border: '1px solid #e0e0e0',
+                        textAlign: 'center'
+                      }}>
+                        <strong style={{ color: '#1e3a8a' }}>Boş Bırakılanlar</strong><br/>
+                        <span style={{ fontSize: '24px', fontWeight: 'bold', color: '#ffc107' }}>
+                          {blankCount}
+                        </span>
+                        <span style={{ fontSize: '16px', color: '#666' }}> / {result?.scaled?.total}</span>
+                      </div>
+                    </div>
+                  );
+                })()}
+                
+                {/* IELTS Band Score */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '15px', marginBottom: '30px' }}>
+                  <div style={{
+                    background: 'white',
+                    padding: '15px',
+                    borderRadius: '8px',
+                    border: '1px solid #e0e0e0',
+                    textAlign: 'center'
+                  }}>
+                    <strong style={{ color: '#1e3a8a' }}>IELTS Band Skoru</strong><br/>
+                    <span style={{ fontSize: '32px', fontWeight: 'bold', color: '#1e3a8a' }}>
+                      {result?.band_estimate}
+                    </span>
+                    <span style={{ fontSize: '14px', color: '#666', display: 'block' }}>Band Score</span>
+                  </div>
                 </div>
-                <div style={{
-                  background: 'white',
-                  padding: '15px',
-                  borderRadius: '8px',
-                  border: '1px solid #e0e0e0',
-                  textAlign: 'center'
+
+                {/* Feedback */}
+                {result?.feedback && (
+                  <div style={{
+                    background: 'white',
+                    padding: '20px',
+                    borderRadius: '8px',
+                    border: '1px solid #e0e0e0',
+                    marginTop: '20px'
+                  }}>
+                    <h5 style={{ color: '#1e3a8a', marginBottom: '10px' }}>💡 Geri Bildirim</h5>
+                    {typeof result.feedback === 'string' ? (
+                      <p style={{ lineHeight: '1.6', color: '#333' }}>{result.feedback}</p>
+                    ) : (
+                      <div style={{ lineHeight: '1.6', color: '#333' }}>
+                        {result.feedback.strengths && (
+                          <div style={{ marginBottom: '15px' }}>
+                            <strong style={{ color: '#28a745' }}>✅ Güçlü Yönler:</strong>
+                            <ul style={{ marginTop: '5px', paddingLeft: '20px' }}>
+                              {result.feedback.strengths.map((strength: string, index: number) => (
+                                <li key={index}>{strength}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                        {result.feedback.improvements && (
+                          <div style={{ marginBottom: '15px' }}>
+                            <strong style={{ color: '#dc3545' }}>🔧 Geliştirilmesi Gerekenler:</strong>
+                            <ul style={{ marginTop: '5px', paddingLeft: '20px' }}>
+                              {result.feedback.improvements.map((improvement: string, index: number) => (
+                                <li key={index}>{improvement}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                        {result.feedback.tips && (
+                          <div>
+                            <strong style={{ color: '#1e3a8a' }}>💡 İpuçları:</strong>
+                            <ul style={{ marginTop: '5px', paddingLeft: '20px' }}>
+                              {result.feedback.tips.map((tip: string, index: number) => (
+                                <li key={index}>{tip}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Action Buttons */}
+                <div style={{ 
+                  textAlign: 'center', 
+                  marginTop: '30px',
+                  display: 'flex',
+                  gap: '15px',
+                  justifyContent: 'center',
+                  flexWrap: 'wrap'
                 }}>
-                  <strong style={{ color: '#8B5CF6' }}>Yanlış Cevaplar</strong><br/>
-                  <span style={{ fontSize: '24px', fontWeight: 'bold', color: '#dc3545' }}>
-                    {wrongCount}
-                  </span>
-                  <span style={{ fontSize: '16px', color: '#666' }}> / {result?.scaled?.total}</span>
-                </div>
-                <div style={{
-                  background: 'white',
-                  padding: '15px',
-                  borderRadius: '8px',
-                  border: '1px solid #e0e0e0',
-                  textAlign: 'center'
-                }}>
-                  <strong style={{ color: '#8B5CF6' }}>Boş Bırakılanlar</strong><br/>
-                  <span style={{ fontSize: '24px', fontWeight: 'bold', color: '#ffc107' }}>
-                    {blankCount}
-                  </span>
-                  <span style={{ fontSize: '16px', color: '#666' }}> / {result?.scaled?.total}</span>
+                  <button
+                    onClick={resetTest}
+                    className="module-btn featured-btn"
+                    style={{ textDecoration: 'none' }}
+                  >
+                    🔄 Yeni Test Başlat
+                  </button>
+                  
+                  <Link to="/" className="module-btn" style={{ textDecoration: 'none' }}>
+                    🏠 Ana Sayfaya Dön
+                  </Link>
                 </div>
               </div>
-            );
-          })()}
-          
-          {/* IELTS Band Score */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '15px', marginBottom: '30px' }}>
-            <div style={{
-              background: 'white',
-              padding: '15px',
-              borderRadius: '8px',
-              border: '1px solid #e0e0e0',
-              textAlign: 'center'
-            }}>
-              <strong style={{ color: '#8B5CF6' }}>IELTS Band Skoru</strong><br/>
-              <span style={{ fontSize: '32px', fontWeight: 'bold', color: '#8B5CF6' }}>
-                {result?.band_estimate}
-              </span>
-              <span style={{ fontSize: '14px', color: '#666', display: 'block' }}>Band Score</span>
-            </div>
-          </div>
-
-          {/* Feedback */}
-          {result?.feedback && (
-            <div style={{
-              background: 'white',
-              padding: '20px',
-              borderRadius: '8px',
-              border: '1px solid #e0e0e0',
-              marginTop: '20px'
-            }}>
-              <h5 style={{ color: '#8B5CF6', marginBottom: '10px' }}>💡 Geri Bildirim</h5>
-              {typeof result.feedback === 'string' ? (
-                <p style={{ lineHeight: '1.6', color: '#333' }}>{result.feedback}</p>
-              ) : (
-                <div style={{ lineHeight: '1.6', color: '#333' }}>
-                  {result.feedback.strengths && (
-                    <div style={{ marginBottom: '15px' }}>
-                      <strong style={{ color: '#28a745' }}>✅ Güçlü Yönler:</strong>
-                      <ul style={{ marginTop: '5px', paddingLeft: '20px' }}>
-                        {result.feedback.strengths.map((strength: string, index: number) => (
-                          <li key={index}>{strength}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                  {result.feedback.improvements && (
-                    <div style={{ marginBottom: '15px' }}>
-                      <strong style={{ color: '#dc3545' }}>🔧 Geliştirilmesi Gerekenler:</strong>
-                      <ul style={{ marginTop: '5px', paddingLeft: '20px' }}>
-                        {result.feedback.improvements.map((improvement: string, index: number) => (
-                          <li key={index}>{improvement}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                  {result.feedback.tips && (
-                    <div>
-                      <strong style={{ color: '#8B5CF6' }}>💡 İpuçları:</strong>
-                      <ul style={{ marginTop: '5px', paddingLeft: '20px' }}>
-                        {result.feedback.tips.map((tip: string, index: number) => (
-                          <li key={index}>{tip}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Action Buttons */}
-          <div style={{ 
-            textAlign: 'center', 
-            marginTop: '30px',
-            display: 'flex',
-            gap: '15px',
-            justifyContent: 'center',
-            flexWrap: 'wrap'
-          }}>
-            <button
-              onClick={resetTest}
-              style={{
-                background: '#28a745',
-                color: 'white',
-                padding: '15px 30px',
-                fontSize: '16px',
-                fontWeight: 'bold',
-                borderRadius: '25px',
-                border: 'none',
-                cursor: 'pointer',
-                boxShadow: '0 4px 15px rgba(40, 167, 69, 0.3)',
-                transition: 'all 0.3s ease'
-              }}
-              onMouseOver={(e) => {
-                e.currentTarget.style.transform = 'translateY(-2px)';
-                e.currentTarget.style.boxShadow = '0 6px 20px rgba(40, 167, 69, 0.4)';
-              }}
-              onMouseOut={(e) => {
-                e.currentTarget.style.transform = 'translateY(0)';
-                e.currentTarget.style.boxShadow = '0 4px 15px rgba(40, 167, 69, 0.3)';
-              }}
-            >
-              🔄 Yeni Test Başlat
-            </button>
-            
-            <button
-              onClick={() => window.history.back()}
-              style={{
-                background: 'rgba(139, 92, 246, 0.1)',
-                color: '#8B5CF6',
-                padding: '15px 30px',
-                fontSize: '16px',
-                fontWeight: 'bold',
-                borderRadius: '25px',
-                border: '2px solid rgba(139, 92, 246, 0.3)',
-                cursor: 'pointer',
-                transition: 'all 0.3s ease'
-              }}
-              onMouseOver={(e) => {
-                e.currentTarget.style.background = 'rgba(139, 92, 246, 0.2)';
-                e.currentTarget.style.borderColor = 'rgba(139, 92, 246, 0.5)';
-              }}
-              onMouseOut={(e) => {
-                e.currentTarget.style.background = 'rgba(139, 92, 246, 0.1)';
-                e.currentTarget.style.borderColor = 'rgba(139, 92, 246, 0.3)';
-              }}
-            >
-              ← Geri
-            </button>
-            
-            <button
-              onClick={() => window.location.href = '/'}
-              style={{
-                background: 'rgba(34, 197, 94, 0.1)',
-                color: '#22c55e',
-                padding: '15px 30px',
-                fontSize: '16px',
-                fontWeight: 'bold',
-                borderRadius: '25px',
-                border: '2px solid rgba(34, 197, 94, 0.3)',
-                cursor: 'pointer',
-                transition: 'all 0.3s ease'
-              }}
-              onMouseOver={(e) => {
-                e.currentTarget.style.background = 'rgba(34, 197, 94, 0.2)';
-                e.currentTarget.style.borderColor = 'rgba(34, 197, 94, 0.5)';
-              }}
-              onMouseOut={(e) => {
-                e.currentTarget.style.background = 'rgba(34, 197, 94, 0.1)';
-                e.currentTarget.style.borderColor = 'rgba(34, 197, 94, 0.3)';
-              }}
-            >
-              🏠 Anasayfa
-            </button>
+            )}
           </div>
         </div>
       )}
+        </div>
+      </div>
     </div>
   );
 };

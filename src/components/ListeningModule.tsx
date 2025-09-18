@@ -1,7 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, Headphones, Play, Pause, Volume2, Settings, Download, Clock } from 'lucide-react';
+import { BookOpen, PenTool, Headphones, Mic, Trophy, BarChart3, Play, Pause, Volume2, Settings, Download, Clock } from 'lucide-react';
 import { auth } from '../services/auth';
+
+// Logo imports
+import headerLogo from '../assets/ieltsgoyazi.png';
+import kitapLogo from '../assets/ieltsgokitap.png';
 
 interface ListeningSection {
   id: number;
@@ -399,18 +403,61 @@ const ListeningModule: React.FC = () => {
   };
 
   return (
-    <div className="container">
-      <div className="card">
-        <div className="mb-4">
-          <Link to="/" className="btn mb-2">
-            <ArrowLeft style={{ marginRight: '8px' }} />
-            Ana Sayfaya Dön
+    <div className="listening-module">
+      {/* Header */}
+      <header className="homepage-header">
+        <div className="header-content">
+          <Link to="/" className="logo-section">
+            <img 
+              src={kitapLogo} 
+              alt="IELTSGO Kitap" 
+              className="kitap-logo"
+            />
+            <img 
+              src={headerLogo} 
+              alt="IELTSGO Yazı" 
+              className="header-logo"
+            />
           </Link>
-          <h1 className="module-header">
-            <Headphones />
-            Listening Modülü
-          </h1>
+
+          {/* Navigation Menu */}
+          <nav className="navbar">
+            <Link to="/reading" className="nav-item">
+              <BookOpen size={20} />
+              <span>Reading</span>
+            </Link>
+            <Link to="/writing" className="nav-item">
+              <PenTool size={20} />
+              <span>Writing</span>
+            </Link>
+            <Link to="/listening" className="nav-item active">
+              <Headphones size={20} />
+              <span>Listening</span>
+            </Link>
+            <Link to="/speaking" className="nav-item">
+              <Mic size={20} />
+              <span>Speaking</span>
+            </Link>
+            <Link to="/general-test" className="nav-item featured">
+              <Trophy size={20} />
+              <span>Genel Test</span>
+            </Link>
+            <Link to="/dashboard" className="nav-item">
+              <BarChart3 size={20} />
+              <span>Dashboard</span>
+            </Link>
+          </nav>
         </div>
+      </header>
+
+      <div className="module-content">
+        <div className="card" style={{ width: '100%', maxWidth: 'none' }}>
+          <div className="mb-4">
+            <h1 className="module-header">
+              <Headphones />
+              Listening Modülü
+            </h1>
+          </div>
 
         {/* Ayarlar */}
         <div className="card mb-4">
@@ -783,6 +830,7 @@ const ListeningModule: React.FC = () => {
             </div>
           </div>
         )}
+        </div>
       </div>
     </div>
   );

@@ -105,19 +105,26 @@ def _get_db():
 
 # JWT Token parsing fonksiyonu
 def get_current_user(authorization: Optional[str] = Header(None)):
+    print(f"🔐 get_current_user çağrıldı")
+    print(f"🔐 Authorization header: {authorization}")
+    
     if not authorization or not authorization.startswith("Bearer "):
+        print(f"❌ Authorization header yok veya Bearer ile başlamıyor")
         return None
     
     token = authorization.split(" ")[1]
+    print(f"🔐 Token: {token[:50]}...")
+    
     try:
         payload = jwt.decode(token, JWT_SECRET_KEY, algorithms=["HS256"])
         user_id = payload.get("sub")
+        print(f"✅ JWT decode başarılı, User ID: {user_id}")
         return user_id
     except jwt.ExpiredSignatureError:
-        print("JWT token expired")
+        print("❌ JWT token expired")
         return None
-    except jwt.InvalidTokenError:
-        print("Invalid JWT token")
+    except jwt.InvalidTokenError as e:
+        print(f"❌ Invalid JWT token: {str(e)}")
         return None
 
 def _ensure_data_dir():
@@ -390,6 +397,7 @@ async def submit_answers(payload: SubmitAnswersRequest, user_id: Optional[str] =
     print(f"👤 User ID: {user_id}")
     print(f"📊 Test data var mı: {hasattr(payload, 'test_data')}")
     print(f"📊 Test data değeri: {payload.test_data is not None if hasattr(payload, 'test_data') else 'N/A'}")
+    print(f"📊 Payload user_id: {payload.user_id}")
     
     # Test artık MongoDB'de değil - frontend'den gelen test verilerini kullan
     if not hasattr(payload, 'test_data') or not payload.test_data:

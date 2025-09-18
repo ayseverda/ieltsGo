@@ -1,8 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import { BookOpen, PenTool, Headphones, Mic, Trophy, BarChart3 } from 'lucide-react';
 import { auth } from '../services/auth';
 import './Dashboard.css';
 import PlantGrowth from './PlantGrowth';
+
+// Logo imports
+import headerLogo from '../assets/ieltsgoyazi.png';
+import kitapLogo from '../assets/ieltsgokitap.png';
 
 interface UserStats {
   listening: {
@@ -178,19 +183,61 @@ const Dashboard: React.FC = () => {
 
   return (
     <div className="dashboard-container">
-      <div className="dashboard-header">
+      {/* Header */}
+      <header className="homepage-header">
+        <div className="header-content">
+          <Link to="/" className="logo-section">
+            <img 
+              src={kitapLogo} 
+              alt="IELTSGO Kitap" 
+              className="kitap-logo"
+            />
+            <img 
+              src={headerLogo} 
+              alt="IELTSGO Yazı" 
+              className="header-logo"
+            />
+          </Link>
+
+          {/* Navigation Menu */}
+          <nav className="navbar">
+            <Link to="/reading" className="nav-item">
+              <BookOpen size={20} />
+              <span>Reading</span>
+            </Link>
+            <Link to="/writing" className="nav-item">
+              <PenTool size={20} />
+              <span>Writing</span>
+            </Link>
+            <Link to="/listening" className="nav-item">
+              <Headphones size={20} />
+              <span>Listening</span>
+            </Link>
+            <Link to="/speaking" className="nav-item">
+              <Mic size={20} />
+              <span>Speaking</span>
+            </Link>
+            <Link to="/general-test" className="nav-item featured">
+              <Trophy size={20} />
+              <span>Genel Test</span>
+            </Link>
+            <Link to="/dashboard" className="nav-item active">
+              <BarChart3 size={20} />
+              <span>Dashboard</span>
+            </Link>
+          </nav>
+          
+          <div className="user-section">
+            <span className="welcome-text">Hoş geldin, {user?.name || 'Kullanıcı'}!</span>
+            <button className="logout-btn" onClick={handleLogout}>Çıkış Yap</button>
+          </div>
+        </div>
+      </header>
+
+      <div className="dashboard-content">
         <div className="dashboard-title">
-          <Link to="/" className="home-link">🏠 Anasayfa</Link>
           <h1>📊 IELTS Go Dashboard</h1>
         </div>
-        <div className="user-info">
-          <span>Hoş geldin, {user?.name || 'Öğrenci'}!</span>
-          <button className="refresh-btn" onClick={fetchUserStats} disabled={isLoading}>
-            {isLoading ? '🔄 Yükleniyor...' : '🔄 Yenile'}
-          </button>
-          <button className="logout-btn" onClick={handleLogout}>Çıkış Yap</button>
-        </div>
-      </div>
 
       {lastUpdated && (
         <div className="last-updated">
@@ -225,7 +272,7 @@ const Dashboard: React.FC = () => {
           <div className="module-card">
             <div className="module-header">
               <h3>🎧 Listening</h3>
-              <Link to="/listening" className="practice-btn">Pratik Yap</Link>
+              <Link to="/listening" className="module-btn">Pratik Yap</Link>
             </div>
             <div className="module-stats">
               <div className="stat">
@@ -246,7 +293,7 @@ const Dashboard: React.FC = () => {
           <div className="module-card">
             <div className="module-header">
               <h3>📖 Reading</h3>
-              <Link to="/reading" className="practice-btn">Pratik Yap</Link>
+              <Link to="/reading" className="module-btn">Pratik Yap</Link>
             </div>
             <div className="module-stats">
               <div className="stat">
@@ -267,7 +314,7 @@ const Dashboard: React.FC = () => {
           <div className="module-card">
             <div className="module-header">
               <h3>✍️ Writing</h3>
-              <Link to="/writing" className="practice-btn">Pratik Yap</Link>
+              <Link to="/writing" className="module-btn">Pratik Yap</Link>
             </div>
             <div className="module-stats">
               <div className="stat">
@@ -288,7 +335,7 @@ const Dashboard: React.FC = () => {
           <div className="module-card">
             <div className="module-header">
               <h3>🗣️ Speaking</h3>
-              <Link to="/speaking" className="practice-btn">Pratik Yap</Link>
+              <Link to="/speaking" className="module-btn">Pratik Yap</Link>
             </div>
             <div className="module-stats">
               <div className="stat">
@@ -385,12 +432,13 @@ const Dashboard: React.FC = () => {
 
           <div className="general-test-info">
             <p>Toplam <strong>{userStats.generalTests.totalTests}</strong> genel deneme tamamlandı</p>
-            <Link to="/general-test" className="btn" style={{ textDecoration: 'none', marginTop: '10px' }}>
+            <Link to="/general-test" className="module-btn featured-btn">
               🎯 Yeni Genel Deneme Yap
             </Link>
           </div>
         </div>
       )}
+      </div>
     </div>
   );
 };
